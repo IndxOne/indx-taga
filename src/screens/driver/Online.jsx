@@ -1,10 +1,18 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
 import MapView from '../../components/MapView'
 import AmountTile from '../../components/AmountTile'
 
+const NAV_ITEMS = [
+  { label: 'Travail', icon: '🚗', path: '/driver/online' },
+  { label: 'Gains', icon: '▣', path: '/payment-methods' },
+  { label: 'Courses', icon: '◷', path: '/ride-history' },
+  { label: 'Profil', icon: '♙', path: '/profile' },
+]
+
 export default function Online() {
   const navigate = useNavigate()
+  const location = useLocation()
   const driverAvailable = useAppStore((state) => state.driverAvailable)
   const setDriverAvailable = useAppStore((state) => state.setDriverAvailable)
   const driverEarningsToday = useAppStore((state) => state.driverEarningsToday)
@@ -62,6 +70,26 @@ export default function Online() {
             </button>
           )}
         </div>
+
+        <nav aria-label="Navigation chauffeur" className="grid grid-cols-4 border-t border-white/15 pt-3">
+          {NAV_ITEMS.map((item) => {
+            const active = location.pathname === item.path
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => navigate(item.path)}
+                aria-current={active ? 'page' : undefined}
+                className={`flex min-h-12 flex-col items-center justify-center gap-1 text-xs transition-opacity ${
+                  active ? 'text-white' : 'text-white/45'
+                }`}
+              >
+                <span className="text-base leading-none">{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
+        </nav>
       </div>
     </div>
   )

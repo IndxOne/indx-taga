@@ -1,19 +1,17 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAppStore } from '../store/useAppStore'
 import Logo from '../components/Logo'
 import PhoneInput from '../components/PhoneInput'
 import PrimaryButton from '../components/PrimaryButton'
 
 export default function Onboarding() {
   const navigate = useNavigate()
-  const role = useAppStore((state) => state.role)
   const [phone, setPhone] = useState('')
 
   const isValid = phone.replace(/\D/g, '').length >= 10
 
   const handleContinue = () => {
-    navigate(role === 'driver' ? '/driver/online' : '/client/home')
+    navigate('/otp')
   }
 
   return (

@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import MapView from '../../components/MapView'
+import BottomNavBar from '../../components/BottomNavBar'
 
 const FAVORITES = [
   { icon: '🏠', label: 'Maison', sub: 'Cocody · Riviera 3' },
@@ -46,6 +47,8 @@ export default function Home() {
           ))}
         </div>
       </div>
+
+      <BottomNavBar />
     </div>
   )
 }

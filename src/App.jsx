@@ -1,7 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import PhoneFrame from './components/PhoneFrame'
+import Splash from './screens/Splash'
 import RoleChoice from './screens/RoleChoice'
 import Onboarding from './screens/Onboarding'
+import Otp from './screens/Otp'
+import Profile from './screens/Profile'
+import RideHistory from './screens/RideHistory'
+import PaymentMethods from './screens/PaymentMethods'
 import Home from './screens/client/Home'
 import Estimate from './screens/client/Estimate'
 import ActiveRide from './screens/client/ActiveRide'
@@ -17,8 +22,13 @@ function App() {
     <BrowserRouter>
       <PhoneFrame>
         <Routes>
-          <Route path="/" element={<RoleChoice />} />
+          <Route path="/" element={<Splash />} />
+          <Route path="/role-choice" element={<RoleChoice />} />
           <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/otp" element={<Otp />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/ride-history" element={<RideHistory />} />
+          <Route path="/payment-methods" element={<PaymentMethods />} />
           <Route path="/client/home" element={<Home />} />
           <Route path="/client/estimate" element={<Estimate />} />
           <Route path="/client/active-ride" element={<ActiveRide />} />
