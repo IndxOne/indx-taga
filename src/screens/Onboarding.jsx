@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/useAppStore'
+import Logo from '../components/Logo'
 import PhoneInput from '../components/PhoneInput'
 import PrimaryButton from '../components/PrimaryButton'
 
@@ -16,17 +17,19 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="flex-1 bg-gradient-to-b from-taga-blue to-taga-navy px-5 py-8 flex flex-col text-white">
-      <div className="flex items-center gap-2 mb-8">
-        <span className="text-taga-green text-2xl">⊤</span>
-        <span className="font-bold text-lg">aga</span>
-      </div>
+    <div
+      className="flex-1 px-6 pt-10 pb-8 flex flex-col text-white"
+      style={{ background: 'radial-gradient(120% 90% at 15% 0%, #0005D6 0%, #0a1128 65%)' }}
+    >
+      <Logo tone="light" />
 
-      <h1 className="text-3xl font-bold leading-tight">Déplacez-vous en toute simplicité.</h1>
-      <p className="text-white/70 mt-3 text-sm">VTC à Abidjan. Chauffeurs professionnels, prix abordables, service rapide.</p>
+      <h1 className="text-4xl font-bold leading-[1.1] mt-10">Déplacez-vous en toute simplicité.</h1>
+      <p className="text-white/70 mt-4 text-sm leading-relaxed max-w-[280px]">
+        VTC à Abidjan. Chauffeurs professionnels, prix abordables, service rapide.
+      </p>
 
-      <div className="mt-auto pt-8">
-        <p className="text-xs text-white/60 mb-2">TON NUMÉRO</p>
+      <div className="mt-auto pt-10">
+        <p className="text-xs font-semibold text-white/50 tracking-wider mb-2">TON NUMÉRO</p>
         <div className="bg-white rounded-xl text-gray-900">
           <PhoneInput value={phone} onChange={setPhone} />
         </div>
@@ -35,7 +38,7 @@ export default function Onboarding() {
             Recevoir le code SMS
           </PrimaryButton>
         </div>
-        <p className="text-xs text-white/50 text-center mt-3">
+        <p className="text-xs text-white/50 text-center mt-3 leading-relaxed">
           En continuant tu acceptes les Conditions et la Politique de confidentialité.
         </p>
       </div>
