@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/useAppStore'
 import RoleCard from '../components/RoleCard'
+import Logo from '../components/Logo'
 
 export default function RoleChoice() {
   const navigate = useNavigate()
@@ -12,21 +13,20 @@ export default function RoleChoice() {
   }
 
   return (
-    <div className="flex-1 bg-taga-navy px-5 py-8 flex flex-col">
-      <div className="text-center mb-8">
-        <div className="w-10 h-10 mx-auto rounded-lg bg-white/10 text-white flex items-center justify-center font-bold mb-3">
-          T
-        </div>
-        <p className="text-white/60 text-xs">ABIDJAN</p>
-        <h1 className="text-white text-2xl font-bold mt-3">Bienvenue.</h1>
-        <p className="text-taga-mango text-2xl font-bold">Tu es ici pour quoi ?</p>
+    <div className="flex-1 bg-taga-navy px-5 py-7 flex flex-col">
+      <div className="mb-8 text-center">
+        <div className="mx-auto mb-3 flex justify-center"><Logo tone="light" /></div>
+        <p className="text-xs tracking-[0.25em] text-white/50">ABIDJAN</p>
+        <h1 className="mt-7 text-3xl font-extrabold leading-tight text-white">Bienvenue.</h1>
+        <p className="text-3xl font-extrabold leading-tight text-taga-mango">Tu es ici pour quoi ?</p>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <RoleCard
           icon="🚕"
           badge="PASSAGER"
           badgeColor="bg-taga-mango"
+          iconBg="bg-taga-mango"
           title="Je commande une course"
           subtitle="Trouve un VTC ou rejoins un covoiturage"
           onSelect={() => selectRole('passenger')}
@@ -35,6 +35,7 @@ export default function RoleChoice() {
           icon="🚗"
           badge="CHAUFFEUR"
           badgeColor="bg-taga-green"
+          iconBg="bg-taga-green"
           title="Je suis chauffeur"
           subtitle="85% net · Retrait instantané"
           onSelect={() => selectRole('driver')}

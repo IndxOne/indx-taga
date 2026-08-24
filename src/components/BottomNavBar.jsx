@@ -1,25 +1,12 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAppStore } from '../store/useAppStore'
-
-const CLIENT_TABS = [
-  { icon: '🏠', label: 'Accueil', path: '/client/home' },
-  { icon: '🧾', label: 'Trajets', path: '/ride-history' },
-  { icon: '💳', label: 'Paiements', path: '/payment-methods' },
-  { icon: '👤', label: 'Profil', path: '/profile' },
-]
-
-const DRIVER_TABS = [
-  { icon: '🚗', label: 'Travail', path: '/driver/online' },
-  { icon: '💰', label: 'Gains', path: '/payment-methods' },
-  { icon: '🧾', label: 'Courses', path: '/ride-history' },
-  { icon: '👤', label: 'Profil', path: '/profile' },
-]
+import { CLIENT_NAV_ITEMS, DRIVER_NAV_ITEMS } from '../navigation/routes'
 
 export default function BottomNavBar() {
   const navigate = useNavigate()
   const location = useLocation()
   const role = useAppStore((state) => state.role)
-  const tabs = role === 'driver' ? DRIVER_TABS : CLIENT_TABS
+  const tabs = role === 'driver' ? DRIVER_NAV_ITEMS : CLIENT_NAV_ITEMS
 
   return (
     <div className="flex items-center justify-around border-t border-gray-100 bg-white px-2 py-2">

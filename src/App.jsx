@@ -16,29 +16,30 @@ import IncomingRequest from './screens/driver/IncomingRequest'
 import Navigation from './screens/driver/Navigation'
 import RideInProgress from './screens/driver/RideInProgress'
 import PayoutRecap from './screens/driver/PayoutRecap'
+import { ROUTES } from './navigation/routes'
 
 function App() {
   return (
     <BrowserRouter>
       <PhoneFrame>
         <Routes>
-          <Route path="/" element={<Splash />} />
-          <Route path="/role-choice" element={<RoleChoice />} />
-          <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/otp" element={<Otp />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/ride-history" element={<RideHistory />} />
-          <Route path="/payment-methods" element={<PaymentMethods />} />
-          <Route path="/client/home" element={<Home />} />
-          <Route path="/client/estimate" element={<Estimate />} />
-          <Route path="/client/active-ride" element={<ActiveRide />} />
-          <Route path="/client/ride-end" element={<RideEnd />} />
-          <Route path="/driver/online" element={<Online />} />
-          <Route path="/driver/incoming-request" element={<IncomingRequest />} />
-          <Route path="/driver/navigation" element={<Navigation />} />
-          <Route path="/driver/ride-in-progress" element={<RideInProgress />} />
-          <Route path="/driver/payout-recap" element={<PayoutRecap />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path={ROUTES.splash} element={<Splash />} />
+          <Route path={ROUTES.roleChoice} element={<RoleChoice />} />
+          <Route path={ROUTES.onboarding} element={<Onboarding />} />
+          <Route path={ROUTES.otp} element={<Otp />} />
+          <Route path={ROUTES.profile} element={<Profile />} />
+          <Route path={ROUTES.rideHistory} element={<RideHistory />} />
+          <Route path={ROUTES.paymentMethods} element={<PaymentMethods />} />
+          <Route path={ROUTES.clientHome} element={<Home />} />
+          <Route path={ROUTES.clientEstimate} element={<Estimate />} />
+          <Route path={ROUTES.clientActiveRide} element={<ActiveRide />} />
+          <Route path={ROUTES.clientRideEnd} element={<RideEnd />} />
+          <Route path={ROUTES.driverOnline} element={<Online />} />
+          <Route path={ROUTES.driverIncomingRequest} element={<IncomingRequest />} />
+          <Route path={ROUTES.driverNavigation} element={<Navigation />} />
+          <Route path={ROUTES.driverRideInProgress} element={<RideInProgress />} />
+          <Route path={ROUTES.driverPayoutRecap} element={<PayoutRecap />} />
+          <Route path="*" element={<Navigate to={ROUTES.splash} replace />} />
         </Routes>
       </PhoneFrame>
     </BrowserRouter>

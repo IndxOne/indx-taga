@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 
+export const DEV_TEST_PASSENGER_PHONE = '+330775679067'
+
 export const MOCK_DRIVER = {
   name: 'Mamadou Ndour',
   rating: 4.93,
@@ -50,6 +52,13 @@ export const useAppStore = create((set) => ({
   role: null, // 'passenger' | 'driver'
   setRole: (role) => set({ role }),
 
+  phone: '',
+  setPhone: (phone) => set({ phone }),
+  otpChallengeId: '',
+  otpMaskedPhone: '',
+  setOtpChallenge: ({ challengeId, maskedPhone }) => set({ otpChallengeId: challengeId, otpMaskedPhone: maskedPhone }),
+  clearOtpChallenge: () => set({ otpChallengeId: '', otpMaskedPhone: '' }),
+
   ride: MOCK_RIDE,
   driver: MOCK_DRIVER,
 
@@ -86,5 +95,5 @@ export const useAppStore = create((set) => ({
       paymentMethods: state.paymentMethods.map((m) => ({ ...m, isDefault: m.id === id })),
     })),
 
-  logout: () => set({ role: null, rideStatus: 'idle', driverAvailable: false }),
+  logout: () => set({ role: null, phone: '', otpChallengeId: '', otpMaskedPhone: '', rideStatus: 'idle', driverAvailable: false }),
 }))

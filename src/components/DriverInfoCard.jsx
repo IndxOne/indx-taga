@@ -1,4 +1,4 @@
-export default function DriverInfoCard({ driver }) {
+export default function DriverInfoCard({ driver, onMessage, onCall }) {
   const initials = driver.name
     .split(' ')
     .map((part) => part[0])
@@ -17,10 +17,10 @@ export default function DriverInfoCard({ driver }) {
             ★ {driver.rating} · {driver.yearsExperience} ans
           </p>
         </div>
-        <button type="button" aria-label="Message" className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+        <button type="button" onClick={onMessage} aria-label="Message au chauffeur" className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
           💬
         </button>
-        <button type="button" aria-label="Appeler" className="w-10 h-10 rounded-full bg-taga-green text-white flex items-center justify-center">
+        <button type="button" onClick={onCall} aria-label="Appeler le chauffeur" className="w-10 h-10 rounded-full bg-taga-green text-white flex items-center justify-center">
           📞
         </button>
       </div>

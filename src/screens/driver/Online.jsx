@@ -15,7 +15,7 @@ export default function Online() {
   const driverHoursOnline = useAppStore((state) => state.driverHoursOnline)
 
   return (
-    <div className="relative flex-1 min-h-0 overflow-hidden bg-gray-100">
+    <div className="relative flex h-full min-h-[700px] flex-1 overflow-hidden bg-[#dcebe8]">
       <div className="absolute inset-x-0 top-0 z-20 px-5 py-4 flex items-center justify-between bg-white/90 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-full bg-taga-mango text-white flex items-center justify-center font-bold">YA</div>
@@ -24,10 +24,12 @@ export default function Online() {
             <p className="font-bold text-sm">Yao Aristide</p>
           </div>
         </div>
-        {driverAvailable && <span className="text-xs font-semibold text-taga-green flex items-center gap-1">● EN LIGNE</span>}
+        <span aria-live="polite" className={`flex items-center gap-1 text-xs font-semibold ${driverAvailable ? 'text-taga-green' : 'text-gray-400'}`}>
+          <span>●</span> {driverAvailable ? 'EN LIGNE' : 'HORS LIGNE'}
+        </span>
       </div>
 
-      <MapView className="absolute inset-0" aria-label="Carte de disponibilité chauffeur">
+      <MapView className="absolute inset-0 z-0 h-full min-h-[700px] w-full" aria-label="Carte de disponibilité chauffeur">
         <div className="absolute inset-0 opacity-70">
           <div className="absolute left-[12%] top-[28%] h-2/3 w-10 bg-white/80" />
           <div className="absolute right-[16%] top-[18%] h-1/2 w-16 bg-white/80" />
@@ -41,14 +43,17 @@ export default function Online() {
         </div>
       </MapView>
 
-      <div className="absolute inset-x-0 bottom-0 z-10 max-h-[58%] overflow-y-auto rounded-t-3xl bg-taga-navy px-5 py-5 text-white shadow-[0_-8px_24px_rgba(10,17,40,0.18)] flex flex-col gap-4">
-        <div>
-          <p className="text-xs text-white/50">TES GAINS AUJOURD'HUI</p>
+      <div className="absolute inset-x-0 bottom-0 z-10 max-h-[48%] overflow-y-auto rounded-t-3xl bg-white px-4 pb-2 pt-4 text-gray-900 shadow-[0_-8px_24px_rgba(10,17,40,0.18)] flex flex-col gap-3">
+        <div className="rounded-2xl bg-gradient-to-br from-taga-navy via-taga-navy to-[#6a4d4d] px-4 py-3 text-white">
+          <div className="flex items-start justify-between">
+            <p className="text-[10px] font-semibold text-white/65">TES GAINS AUJOURD'HUI</p>
+            <p className="text-[10px] text-white/55">SAM. 24 AVR.</p>
+          </div>
           <AmountTile amount={driverEarningsToday} size="xl" tone="light" />
+          <p className="mt-1 text-[10px] text-white/65">Courses · {driverRidesToday} · En ligne · {driverHoursOnline} · Note · 4.91 ★</p>
         </div>
-        <p className="text-xs text-white/60">Courses · {driverRidesToday} · En ligne · {driverHoursOnline}</p>
 
-        <div className="flex items-center justify-between bg-white/10 rounded-xl px-4 py-3">
+        <div className="flex items-center justify-between rounded-xl bg-taga-green/10 px-3 py-2">
           <ToggleSwitch
             id="availability-toggle"
             checked={driverAvailable}
@@ -56,13 +61,24 @@ export default function Online() {
             label="Disponible pour course"
           />
           {driverAvailable && (
-            <button type="button" onClick={() => navigate(ROUTES.driverIncomingRequest)} className="text-taga-mango text-sm font-semibold">
+            <button type="button" onClick={() => navigate(ROUTES.driverIncomingRequest)} className="rounded-lg bg-taga-mango px-3 py-2 text-xs font-bold text-white">
               Simuler →
             </button>
           )}
         </div>
 
-        <nav aria-label="Navigation chauffeur" className="grid grid-cols-4 border-t border-white/15 pt-3">
+        <div className="flex items-center gap-3 rounded-xl bg-[#fff5e8] px-3 py-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-taga-mango/20 text-sm">🎯</div>
+          <div>
+            <p className="text-xs font-semibold text-gray-800">Bonus +5 000 F</p>
+            <p className="text-[10px] text-gray-400">13/18 courses cette semaine · plus que 5</p>
+            <div className="mt-1.5 h-1.5 w-44 max-w-full overflow-hidden rounded-full bg-taga-mango/15">
+              <div className="h-full w-[72%] rounded-full bg-taga-mango" />
+            </div>
+          </div>
+        </div>
+
+        <nav aria-label="Navigation chauffeur" className="grid grid-cols-4 border-t border-gray-100 pt-2">
           {DRIVER_NAV_ITEMS.map((item) => {
             const active = location.pathname === item.path
             return (
@@ -71,8 +87,8 @@ export default function Online() {
                 type="button"
                 onClick={() => navigate(item.path)}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-12 flex-col items-center justify-center gap-1 text-xs transition-opacity ${
-                  active ? 'text-white' : 'text-white/45'
+                className={`flex min-h-11 flex-col items-center justify-center gap-1 text-xs transition-opacity ${
+                  active ? 'font-semibold text-taga-blue' : 'text-gray-400'
                 }`}
               >
                 <span className="text-base leading-none">{item.icon}</span>

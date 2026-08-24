@@ -143,6 +143,9 @@ Les deux passent sur l'état final (16 écrans). Flows complets rejoués dans un
 
 ## Suite possible
 
-- **Débloquer le push** : fournir un PAT GitLab (scope `write_repository`) ou pousser manuellement depuis un poste avec credential manager fonctionnel — condition pour sauvegarder le travail sur `origin/main` et pour qu'un vrai dispatch multi-agent redevienne possible sur un futur lot.
+- **QA onboarding/OTP** : [rapport QA](../../qa/2026-08-24-taga-passenger-onboarding-otp.md) — simulation locale validée, SMS réel non branché.
+- **Plan SMS réel** : [plan d’implémentation](./2026-08-24-taga-passenger-sms-implementation-plan.md) — Supabase Auth, fournisseur SMS, routage dev serveur et critères d’acceptation.
+- **Répartition des responsabilités** : [tableau comparatif](./2026-08-24-taga-responsabilites-implementation.md) — responsables, livrables, fichiers, dépendances et ordre d’exécution.
+- **Débloquer le push** : fournir un PAT GitLab (scope `write_repository`) ou pousser manuellement depuis un poste avec credential manager fonctionnel — condition pour sauvegarder le travail sur `origin/main` et pour qu’un vrai dispatch multi-agent redevienne possible sur un futur lot.
 - **Polish visuel** : remplacer les emojis par des icônes SVG (les emojis s'affichent en tofu dans certains environnements headless/Linux sans police couleur — déjà corrigé pour le drapeau 🇨🇮 sur l'écran Onboarding, pas encore fait pour le reste).
 - **Phase suivante** : portage vers FlutterFlow + Supabase à partir de ce prototype validé, en s'appuyant sur `2026-08-24-taga-flutterflow-screens.md` (v4) et `2026-08-24-taga-supabase-schema.md` (v4) — hors dépôt distant (`docs/superpowers/specs/` volontairement non poussé, voir `.gitignore`).
