@@ -24,9 +24,11 @@ export default function DriverInfoCard({ driver }) {
           📞
         </button>
       </div>
-      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-sm gap-2">
+      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-sm">
         <span className="text-gray-500">Véhicule</span>
-        <span className="font-semibold">{driver.vehicle.model} · {driver.vehicle.color}</span>
+        <span className="font-semibold">
+          {driver.vehicle.model} · {driver.vehicle.color}
+        </span>
         <span className="text-xs font-mono border border-gray-200 rounded px-2 py-0.5">{driver.vehicle.plate}</span>
       </div>
     </div>

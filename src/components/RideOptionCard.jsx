@@ -1,11 +1,9 @@
 export default function RideOptionCard({ name, badge, description, price, originalPrice, selected, onSelect }) {
-  const formatted = (amount) => new Intl.NumberFormat('fr-FR').format(amount)
-
+  const formatted = (n) => new Intl.NumberFormat('fr-FR').format(n)
   return (
     <button
       type="button"
       onClick={onSelect}
-      aria-pressed={selected}
       className={`w-full text-left border-2 rounded-xl p-4 flex items-center gap-3 transition-colors ${
         selected ? 'border-taga-blue bg-taga-blue/5' : 'border-gray-100'
       }`}
