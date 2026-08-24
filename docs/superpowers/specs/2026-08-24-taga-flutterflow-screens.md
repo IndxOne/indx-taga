@@ -1,6 +1,6 @@
 # TAGA — Spec d'implémentation FlutterFlow (écran par écran)
 
-Date : 2026-08-24 (v3 — corrections suite 2e revue technique)
+Date : 2026-08-24 (v4 — corrections suite 3e revue technique)
 Statut : approuvé (design), à construire dans FlutterFlow.
 
 ## Portée
@@ -8,7 +8,7 @@ Statut : approuvé (design), à construire dans FlutterFlow.
 Ce document documente, écran par écran, la réalisation finale dans
 FlutterFlow : widgets, composants réutilisables, variables d'état, actions
 par bouton, routes, tables Supabase concernées (voir
-`2026-08-24-taga-supabase-schema.md`, v2), règles de visibilité,
+`2026-08-24-taga-supabase-schema.md`, v4), règles de visibilité,
 comportement responsive mobile, et critères d'acceptation.
 
 Base UX : `2026-08-24-taga-prototype-design.md` (prototype React) et les
@@ -38,7 +38,16 @@ inutilisable avec `security_invoker` + RLS restrictives) ; écran Demande
 entrante peut désormais lire la course avant acceptation (nouvelle policy
 `rides_select_via_offer`) ; écran Course en cours termine la course via
 l'Edge Function `complete-ride` (crédit idempotent) au lieu d'un `update`
-client direct. Voir **Changelog** en fin de document.
+client direct.
+
+**v4 — changements suite 3e revue** : écran Navigation appelle les
+nouvelles Edge Functions `mark-driver-arrived`/`start-ride` au lieu d'un
+`update` client direct (RLS ne laisse plus aucune écriture cliente sur
+`rides`, même pour des transitions jugées non financières) ; écran Course
+active annule via l'Edge Function `cancel-ride` au lieu d'un `update`
+direct ; appel `accept-ride` clarifié (`ride_id` seul, chauffeur dérivé du
+JWT, jamais transmis par le client). Voir **Changelog** en fin de
+document.
 
 Conventions transverses :
 - App mobile uniquement (portrait), largeur cible 375–430px, pas de layout
@@ -412,8 +421,9 @@ reçues d'`estimate-fare`, sans revérification serveur à la création)*
     écran de chat (hors scope détail).
   - `Partager le trajet` : génère un lien de suivi (hors scope backend
     détaillé).
-  - Annulation (bouton secondaire, si `status = 'searching'`) : update
-    `rides.status = 'cancelled'`.
+  - Annulation (bouton secondaire, si `status = 'searching'`) : appel
+    Edge Function `cancel-ride` (`ride_id` seul — v4, plus d'`update`
+    client direct, RLS n'autorise aucune écriture sur `rides`).
 - **Routes** : `/client/active-ride?ride_id=...`.
 - **Tables Supabase** : `select` + souscription Realtime sur `rides` et
   `driver_locations` ; infos chauffeur (`DriverInfoCard`) chargées via
@@ -516,8 +526,9 @@ reçues d'`estimate-fare`, sans revérification serveur à la création)*
   `incomingOffer.expires_at - now()`, pas un timer fixe indépendant du
   serveur).
 - **Actions** :
-  - `Accepter` : appel Edge Function `accept-ride`
-    (`ride_id`, `driver_id`). Succès → navigate
+  - `Accepter` : appel Edge Function `accept-ride` (`ride_id` — le
+    chauffeur est dérivé du JWT côté serveur, jamais envoyé par le
+    client). Succès → navigate
     `/driver/navigation?ride_id=...`. Échec (offre expirée ou course déjà
     prise) → message explicite + retour `/driver/online`.
   - `Refuser` : update direct `ride_offers.status = 'refused'` (autorisé
@@ -550,7 +561,11 @@ reçues d'`estimate-fare`, sans revérification serveur à la création)*
 
 ## Écran 13 — Navigation
 
-*(v2 — statut de départ `driver_en_route`, réellement atteint désormais)*
+*(v4 — "Je suis arrivé"/"Démarrer course" appellent des Edge Functions au
+lieu d'un `update` client direct : RLS n'autorise plus aucune écriture
+sur `rides` par le client, y compris pour ces transitions jugées "non
+financières" en v2/v3 — un `update` par ailleurs autorisé sur le statut
+n'empêche pas la modification d'autres colonnes dans la même requête)*
 
 - **Widgets** : bandeau instruction de guidage ("200m, Tout droit sur
   Bd Latrille"), ETA résumé, `MapView` avec itinéraire vers le pickup,
@@ -560,13 +575,16 @@ reçues d'`estimate-fare`, sans revérification serveur à la création)*
 - **Variables d'état** : `ride` (Page State, souscription Realtime sur
   `rides`, statut initial `driver_en_route`).
 - **Actions** :
-  - `Je suis arrivé` (visible si `status = 'driver_en_route'`) : update
-    `rides.status = 'arrived'`, le bouton se relabellise "Démarrer course".
-  - `Démarrer course` (visible si `status = 'arrived'`) : update
-    `rides.status = 'in_progress'`, `started_at = now()` → navigate
+  - `Je suis arrivé` (visible si `status = 'driver_en_route'`) : appel
+    Edge Function `mark-driver-arrived` (`ride_id` seul), qui positionne
+    `status = 'arrived'` ; le bouton se relabellise "Démarrer course".
+  - `Démarrer course` (visible si `status = 'arrived'`) : appel Edge
+    Function `start-ride` (`ride_id` seul), qui positionne
+    `status = 'in_progress'`, `started_at = now()` → navigate
     `/driver/ride-in-progress?ride_id=...`.
 - **Routes** : `/driver/navigation?ride_id=...`.
-- **Tables Supabase** : `select`/`update` sur `rides`.
+- **Tables Supabase** : `select` sur `rides` (lecture) ; aucune écriture
+  directe — `mark-driver-arrived`/`start-ride` (`service_role`).
 - **Règles de visibilité** : accessible uniquement si `driver_id =
   auth.uid()` et `status in ('driver_en_route','arrived')`.
 - **Responsive mobile** : bandeau d'instruction fixe en haut, bouton
@@ -705,3 +723,12 @@ point soulevé et sa correction. Résumé côté écrans :
 | Demande entrante (12) | Lecture de la course avant acceptation désormais possible (policy `rides_select_via_offer`) |
 | Course en cours (14) | "Terminer la course" appelle l'Edge Function `complete-ride` (crédit idempotent) au lieu d'un `update` client direct |
 | Transverse | Ajout composants `PaymentMethodTile`, `RideHistoryTile`, `BottomNavBar` ; Accueil branché sur `saved_places` |
+
+**v3 → v4**
+
+| Écran | Changement |
+|---|---|
+| Navigation (13) | "Je suis arrivé"/"Démarrer course" appellent `mark-driver-arrived`/`start-ride` au lieu d'un `update` client direct |
+| Course active (9) | Annulation via l'Edge Function `cancel-ride` au lieu d'un `update` client direct |
+| Demande entrante (12) | Appel `accept-ride` clarifié : `ride_id` seul, chauffeur dérivé du JWT |
+| Transverse | `DriverInfoCard` référence corrigée vers `get_active_driver_info` (résidu de la vue supprimée en v3, oublié dans la liste des composants) |
