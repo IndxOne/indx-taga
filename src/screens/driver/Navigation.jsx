@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
 import MapView from '../../components/MapView'
 import PrimaryButton from '../../components/PrimaryButton'
+import BackButton from '../../components/BackButton'
+import { ROUTES } from '../../navigation/routes'
 
 export default function Navigation() {
   const navigate = useNavigate()
@@ -22,6 +24,7 @@ export default function Navigation() {
   return (
     <div className="flex-1 flex flex-col">
       <div className="bg-taga-navy text-white px-4 py-3 flex items-center gap-3">
+        <BackButton to={ROUTES.driverOnline} />
         <span className="w-9 h-9 rounded-lg bg-taga-mango flex items-center justify-center">↑</span>
         <div><p className="font-bold">200 m</p><p className="text-xs text-white/60">Tout droit sur Bd Latrille</p></div>
       </div>
