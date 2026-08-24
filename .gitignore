@@ -12,6 +12,23 @@ dist
 dist-ssr
 *.local
 
+# Documents internes non destinés au dépôt
+docs/superpowers/specs/
+
+# Secrets et credentials locaux
+.env
+.env.*
+!.env.example
+secrets/
+private/
+credentials/
+*.secret
+*.secrets
+*.pem
+*.key
+*.p12
+*.pfx
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
