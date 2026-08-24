@@ -1,6 +1,6 @@
 # TAGA — Schéma Supabase (data model, RLS, matching temps réel)
 
-Date : 2026-08-24 (v2 — corrections suite revue technique)
+Date : 2026-08-24 (v3 — corrections suite 2e revue technique)
 Statut : approuvé (design), à implémenter via migrations SQL.
 
 ## Portée
@@ -8,25 +8,62 @@ Statut : approuvé (design), à implémenter via migrations SQL.
 Ce document décrit le modèle de données Supabase qui alimente l'app TAGA
 construite dans FlutterFlow (voir `2026-08-24-taga-flutterflow-screens.md`
 pour la spec écran par écran qui référence ces tables). Il couvre : schéma
-complet (tables/colonnes/types), politiques RLS, l'architecture de matching
-chauffeur/passager en temps réel, et la sécurisation des flux financiers.
+complet (tables/colonnes/types), ordre de migration, politiques RLS et
+grants par colonne, l'architecture de matching chauffeur/passager en temps
+réel, et la sécurisation des flux financiers.
 
-**v2 — changements suite revue** : statuts de course simplifiés
-(`accepted` supprimé, fusionné dans `driver_en_route`), ajout de
-`ride_offers` (traçabilité du matching), ajout de `rides.payment_method_id`,
-vue `active_driver_public` corrigée (filtre explicite + `security_invoker`),
-RLS `payments` corrigée (plus de colonne inexistante), `driver_locations`
-RLS étendue à `in_progress`, refonte complète du wallet/retrait
-(`driver_wallets`, `payouts`, idempotence, verrou serveur), ajout
-`saved_places`. Voir section **Changelog** en fin de document pour le détail
-mappé à chaque point de la revue.
+**v3 — changements suite 2e revue** : suppression de la FK inline
+`rides.payment_method_id` (ordre de migration invalide) ; remplacement de
+la vue `active_driver_public` par une fonction `security definer`
+(`get_active_driver_info`) car `security_invoker` bloquait la lecture
+sous RLS ; ajout d'une policy + vue `driver_incoming_offers` pour que le
+chauffeur puisse lire une course avant acceptation ; création de profil
+déplacée dans une Edge Function `complete-profile` (les policies `insert`
+client sur `profiles`/`driver_profiles`/`driver_wallets` sont supprimées) ;
+création de course déplacée dans une Edge Function `request-ride` (prix
+recalculé serveur, plus d'`insert` client direct sur `rides`) ; grants par
+colonne sur `profiles`/`driver_profiles` pour empêcher la modification de
+champs sensibles (`rating_avg`, `verification_status`...) ; index unique
+partiel pour un seul moyen de paiement par défaut ; trigger de propriété
+sur `default_payout_method_id` ; crédit du wallet rendu idempotent
+(index unique partiel sur `ride_id`) et déplacé dans une Edge Function
+`complete-ride` ; mécanisme de réconciliation des `payouts` bloqués ;
+section **Ordre de migration** ajoutée. Voir **Changelog** en fin de
+document.
+
+## Ordre de migration
+
+Les blocs SQL de ce document doivent être appliqués dans cet ordre (chaque
+étape dépend de la précédente) :
+
+1. Extension `postgis`.
+2. `profiles`
+3. `driver_profiles` (sans FK vers `payment_methods` — ajoutée en 10)
+4. `vehicles`
+5. `driver_locations`
+6. `saved_places`
+7. `rides` (`payment_method_id uuid` **sans** référence inline — ajoutée en 10)
+8. `ride_offers`
+9. `payment_methods`
+10. `alter table` : FK `driver_profiles.default_payout_method_id`,
+    FK `rides.payment_method_id`, trigger de propriété du moyen de retrait
+11. `payments`
+12. `driver_wallets`
+13. `wallet_transactions`
+14. `payouts` + FK `wallet_transactions.payout_id`
+15. `ratings` + trigger de mise à jour de `profiles.rating_avg`
+16. Index uniques partiels (`payment_methods` défaut unique,
+    `wallet_transactions` crédit idempotent)
+17. RLS (`enable row level security` + policies, toutes tables)
+18. Grants par colonne (`profiles`, `driver_profiles`)
+19. Fonction `security definer` `get_active_driver_info`
+20. Policy Realtime (canal privé chauffeur)
 
 ## Tables
 
 ### `profiles`
-Étend `auth.users`. Créé **après** l'étape "Compléter le profil" (écran
-3bis, spec écrans) — jamais directement à la vérification OTP, pour garantir
-`full_name` renseigné.
+Étend `auth.users`. Créé exclusivement via l'Edge Function
+`complete-profile` (v3 — plus d'`insert` client direct, voir RLS).
 
 ```sql
 create table profiles (
@@ -50,7 +87,7 @@ create table driver_profiles (
   verification_status text not null default 'pending'
     check (verification_status in ('pending','verified','rejected')),
   is_available boolean not null default false,
-  default_payout_method_id uuid, -- FK ajoutée après création de payment_methods
+  default_payout_method_id uuid, -- FK ajoutée à l'étape 10
   years_experience integer,
   created_at timestamptz not null default now()
 );
@@ -99,21 +136,22 @@ create table saved_places (
 ```
 
 ### `rides`
-Une ligne par course, de la demande à la fin (ou annulation).
+Une ligne par course, de la demande à la fin (ou annulation). Créée
+exclusivement via l'Edge Function `request-ride` (v3 — voir RLS et section
+"Estimation & création de course").
 
-**Statuts simplifiés (v2)** : `accepted` supprimé — l'acceptation d'une
-offre par un chauffeur fait passer la course directement à
-`driver_en_route` (voir section Matching). `offered` supprimé du niveau
-`rides` : la notion d'offre par chauffeur vit maintenant dans
-`ride_offers`, `rides.status` reste `searching` tant qu'aucun chauffeur n'a
-été assigné.
+**Correction v3 (bloquant #1)** : `payment_method_id` n'a **plus de
+référence inline** — `payment_methods` est créée après `rides` dans
+l'ordre de migration. La contrainte `foreign key` est ajoutée par un
+`alter table` séparé à l'étape 10, une fois `payment_methods` existante
+(même pattern déjà utilisé pour `driver_profiles.default_payout_method_id`).
 
 ```sql
 create table rides (
   id uuid primary key default gen_random_uuid(),
   passenger_id uuid not null references profiles(id),
   driver_id uuid references driver_profiles(id),
-  payment_method_id uuid references payment_methods(id), -- FK ajoutée après création de payment_methods
+  payment_method_id uuid, -- FK ajoutée à l'étape 10, après création de payment_methods
   category text not null check (category in ('go','partage','family','confort')),
   status text not null default 'searching'
     check (status in ('searching','driver_en_route',
@@ -139,11 +177,10 @@ create index rides_passenger_idx on rides(passenger_id);
 create index rides_driver_idx on rides(driver_id);
 ```
 
-### `ride_offers` *(nouveau — v2)*
+### `ride_offers`
 Trace chaque sollicitation individuelle envoyée à un chauffeur pendant le
 matching : qui a été sollicité, quand, avec quelle expiration, et sa
-réponse. Nécessaire pour un matching réel (relance si refus/expiration,
-audit, anti-double-acceptation).
+réponse.
 
 ```sql
 create table ride_offers (
@@ -174,7 +211,15 @@ create table payment_methods (
   is_default boolean not null default false,
   created_at timestamptz not null default now()
 );
+```
 
+### Étape 10 — contraintes différées et trigger de propriété
+
+**Correction v3 (bloquant #6, risque "default_payout_method_id peut
+pointer vers un autre profil")** : un trigger vérifie que le moyen de
+retrait par défaut d'un chauffeur lui appartient bien.
+
+```sql
 alter table driver_profiles
   add constraint driver_profiles_default_payout_fk
   foreign key (default_payout_method_id) references payment_methods(id);
@@ -182,6 +227,29 @@ alter table driver_profiles
 alter table rides
   add constraint rides_payment_method_fk
   foreign key (payment_method_id) references payment_methods(id);
+
+create or replace function check_default_payout_owner()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if new.default_payout_method_id is not null then
+    if not exists (
+      select 1 from payment_methods pm
+      where pm.id = new.default_payout_method_id
+        and pm.profile_id = new.id
+    ) then
+      raise exception 'default_payout_method_id must belong to the same profile';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger driver_profiles_default_payout_owner_check
+before insert or update of default_payout_method_id on driver_profiles
+for each row execute function check_default_payout_owner();
 ```
 
 ### `payments`
@@ -201,11 +269,9 @@ create table payments (
 );
 ```
 
-### `driver_wallets` *(nouveau — v2)*
+### `driver_wallets`
 Solde courant du chauffeur, **source de vérité unique**, maintenu
-exclusivement côté serveur (jamais recalculé/décidé côté client
-FlutterFlow). Remplace le calcul "somme des `wallet_transactions`" décrit
-en v1, jugé pas assez fiable pour de l'argent réel.
+exclusivement côté serveur.
 
 ```sql
 create table driver_wallets (
@@ -217,14 +283,14 @@ create table driver_wallets (
 
 ### `wallet_transactions`
 Ledger d'audit (append-only) des mouvements. Écrit uniquement par
-Edge Function/trigger (`service_role`).
+Edge Function (`service_role`).
 
 ```sql
 create table wallet_transactions (
   id uuid primary key default gen_random_uuid(),
   driver_id uuid not null references driver_profiles(id) on delete cascade,
   ride_id uuid references rides(id),
-  payout_id uuid, -- FK ajoutée après création de payouts
+  payout_id uuid, -- FK ajoutée après création de payouts (étape 14)
   type text not null check (type in ('ride_earning','bonus','payout','payout_refund')),
   amount integer not null, -- positif pour ride_earning/bonus/payout_refund, négatif pour payout
   created_at timestamptz not null default now()
@@ -232,11 +298,8 @@ create table wallet_transactions (
 create index wallet_transactions_driver_idx on wallet_transactions(driver_id);
 ```
 
-### `payouts` *(nouveau — v2)*
-Une ligne par demande de retrait, avec idempotence et statut explicite —
-remplace le simple "transaction négative" de la v1, insuffisant pour de
-l'argent réel (pas de protection contre les doubles clics/retries réseau,
-pas de suivi de l'état réel côté fournisseur mobile money).
+### `payouts`
+Une ligne par demande de retrait, avec idempotence et statut explicite.
 
 ```sql
 create table payouts (
@@ -259,6 +322,11 @@ alter table wallet_transactions
 
 ### `ratings`
 
+**Correction v3** : trigger de mise à jour automatique de
+`profiles.rating_avg`/`rating_count` — ces colonnes ne sont plus
+modifiables par le client (voir grants par colonne), il fallait donc un
+mécanisme serveur pour les tenir à jour.
+
 ```sql
 create table ratings (
   id uuid primary key default gen_random_uuid(),
@@ -271,64 +339,128 @@ create table ratings (
   created_at timestamptz not null default now(),
   unique (ride_id, rater_id)
 );
+
+create or replace function update_profile_rating()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  update profiles
+  set rating_count = rating_count + 1,
+      rating_avg = round(((rating_avg * rating_count) + new.stars) / (rating_count + 1), 1)
+  where id = new.rated_id;
+  return new;
+end;
+$$;
+
+create trigger ratings_update_profile_rating
+after insert on ratings
+for each row execute function update_profile_rating();
 ```
 
-## Vue publique restreinte — infos chauffeur pendant une course
+## Index uniques partiels
 
-**Corrigée (v2)** : filtre explicite sur le passager courant **et**
-`security_invoker` pour que la vue s'exécute avec les droits (et donc les
-RLS) de l'utilisateur appelant, pas du créateur de la vue. Les deux
-mécanismes se cumulent en défense en profondeur.
+**Correction v3 (risque "aucun index unique ne garantit un seul moyen de
+paiement par défaut")** :
 
 ```sql
-create view active_driver_public
-with (security_invoker = true) as
-select
-  r.id as ride_id,
-  p.id as driver_profile_id,
-  p.full_name,
-  p.avatar_url,
-  p.rating_avg,
-  p.rating_count,
-  v.plate,
-  v.model,
-  v.color
-from rides r
-join driver_profiles dp on dp.id = r.driver_id
-join profiles p on p.id = dp.id
-join vehicles v on v.driver_id = dp.id
-where r.status in ('driver_en_route','arrived','in_progress')
-  and r.passenger_id = auth.uid();
-
-grant select on active_driver_public to authenticated;
+create unique index payment_methods_one_default_per_profile
+on payment_methods (profile_id)
+where is_default;
 ```
+
+**Correction v3 (bloquant "crédit du wallet non idempotent")** : un seul
+crédit `ride_earning` par course, garanti au niveau base — un deuxième
+appel de `complete-ride` pour la même course ne peut pas créer une
+deuxième ligne de crédit.
+
+```sql
+create unique index wallet_transactions_ride_earning_once
+on wallet_transactions (ride_id)
+where type = 'ride_earning';
+```
+
+## Infos chauffeur pendant une course — fonction sécurisée (v3)
+
+**Correction v3 (bloquant #2)** : la vue `active_driver_public` v2 avec
+`security_invoker = true` exécute la requête avec les droits du passager
+appelant — donc avec **ses** RLS. Or les RLS de `profiles`,
+`driver_profiles` et `vehicles` n'autorisent la lecture que de sa propre
+ligne (`id = auth.uid()`). Un passager ne peut donc jamais lire les lignes
+du chauffeur à travers cette vue, filtre ou pas : la vue était
+inutilisable telle quelle.
+
+Remplacée par une **fonction `security definer`**, qui s'exécute avec les
+droits du créateur de la fonction (contournant volontairement les RLS des
+tables sous-jacentes), mais dont le corps vérifie explicitement et
+strictement que l'appelant est bien le passager de la course active avant
+de renvoyer quoi que ce soit — c'est cette vérification interne, pas RLS,
+qui sécurise l'accès ici.
+
+```sql
+create or replace function get_active_driver_info(p_ride_id uuid)
+returns table (
+  driver_profile_id uuid,
+  full_name text,
+  avatar_url text,
+  rating_avg numeric,
+  rating_count integer,
+  plate text,
+  model text,
+  color text
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select p.id, p.full_name, p.avatar_url, p.rating_avg, p.rating_count,
+         v.plate, v.model, v.color
+  from rides r
+  join driver_profiles dp on dp.id = r.driver_id
+  join profiles p on p.id = dp.id
+  join vehicles v on v.driver_id = dp.id
+  where r.id = p_ride_id
+    and r.passenger_id = auth.uid()
+    and r.status in ('driver_en_route','arrived','in_progress');
+$$;
+
+revoke all on function get_active_driver_info(uuid) from public;
+grant execute on function get_active_driver_info(uuid) to authenticated;
+```
+
+Côté FlutterFlow, l'écran Course active appelle cette fonction (RPC) au
+lieu de lire une vue/table directement.
 
 ## RLS — politiques
 
 RLS activé sur toutes les tables (`alter table ... enable row level security;`).
-Sauf mention contraire, aucune politique `insert`/`update`/`delete` n'existe
-pour le rôle `authenticated` sur les tables financières — ces écritures
-passent exclusivement par des Edge Functions en `service_role`, qui
-contournent RLS par conception (donc la logique métier, pas RLS, y garantit
-la sécurité — voir section Paiements & retraits).
 
 - **`profiles`**
-  - `select`/`update` : `id = auth.uid()`.
+  - `select` : `id = auth.uid()`.
+  - `update` : `id = auth.uid()`, **restreint par colonne** (voir Grants
+    ci-dessous) — impossible de modifier `rating_avg`, `rating_count`,
+    `has_driver_profile` depuis le client.
+  - `insert` : **aucune policy client** (correction v3, bloquant #4) —
+    créé exclusivement par l'Edge Function `complete-profile`
+    (`service_role`).
   - Pas de lecture croisée directe — les infos chauffeur passent par
-    `active_driver_public`.
+    `get_active_driver_info`.
 - **`driver_profiles`**
-  - `select`/`update`/`insert` : `id = auth.uid()`.
+  - `select` : `id = auth.uid()`.
+  - `update` : `id = auth.uid()`, **restreint par colonne** — impossible
+    de modifier `verification_status` depuis le client.
+  - `insert` : **aucune policy client** (correction v3) — créé
+    exclusivement par `complete-profile` (première inscription chauffeur)
+    ou une future Edge Function `become-driver` (passager existant qui
+    active le mode chauffeur).
 - **`vehicles`**
   - `select`/`insert`/`update`/`delete` : `driver_id = auth.uid()`.
 - **`saved_places`**
   - `select`/`insert`/`update`/`delete` : `profile_id = auth.uid()`.
 - **`driver_locations`**
-  - `insert`/`update` : `driver_id = auth.uid()` (le chauffeur écrit sa
-    propre position).
-  - `select` : autorisé si l'utilisateur courant est le passager d'une
-    course active dont `driver_id` correspond, **statuts
-    `driver_en_route`, `arrived`, `in_progress`** (corrigé v2 — `in_progress`
-    manquait, ce qui coupait le suivi pendant la course elle-même) :
+  - `insert`/`update` : `driver_id = auth.uid()`.
+  - `select` :
     ```sql
     create policy driver_locations_select on driver_locations for select using (
       exists (
@@ -341,35 +473,62 @@ la sécurité — voir section Paiements & retraits).
     );
     ```
 - **`rides`**
-  - `select` :
-    - passager : `passenger_id = auth.uid()`.
-    - chauffeur : `driver_id = auth.uid()` (course déjà assignée) — la
-      visibilité des courses `searching` disponibles ne passe **pas** par
-      une lecture directe de `rides` mais par `ride_offers` (voir
-      politique suivante), pour ne jamais exposer toutes les courses en
-      recherche à tous les chauffeurs.
-  - `insert` : passager authentifié, `passenger_id = auth.uid()`.
+  - `select` — **deux policies combinées (OR)**, corrigeant le bloquant
+    #3 : le chauffeur doit pouvoir lire une course dès qu'une offre lui a
+    été envoyée, pas seulement une fois assigné.
+    ```sql
+    create policy rides_select_own on rides for select using (
+      passenger_id = auth.uid() or driver_id = auth.uid()
+    );
+
+    create policy rides_select_via_offer on rides for select using (
+      exists (
+        select 1 from ride_offers o
+        where o.ride_id = rides.id
+          and o.driver_id = auth.uid()
+          and o.status = 'sent'
+          and o.expires_at > now()
+      )
+    );
+    ```
+  - `insert` : **aucune policy client** (correction v3, bloquant #5) —
+    créée exclusivement par l'Edge Function `request-ride`
+    (`service_role`), qui recalcule le prix côté serveur (voir section
+    "Estimation & création de course").
   - `update` :
-    - passager : uniquement `status` vers `cancelled`, et uniquement si
-      `status = 'searching'`.
-    - chauffeur : transition de statut sur une course où
-      `driver_id = auth.uid()` (`arrived`, `in_progress`).
-    - L'assignation `driver_id` + passage à `driver_en_route` se fait
-      **exclusivement** via l'Edge Function `accept-ride`
-      (`service_role`), jamais par une policy `update` ouverte au client,
-      pour garantir l'atomicité anti double-acceptation.
+    - passager, annulation uniquement :
+      ```sql
+      create policy rides_update_passenger_cancel on rides for update
+      using (passenger_id = auth.uid() and status = 'searching')
+      with check (status = 'cancelled');
+      ```
+    - chauffeur, transitions non financières uniquement (`driver_en_route`
+      → `arrived` → `in_progress`) :
+      ```sql
+      create policy rides_update_driver_progress on rides for update
+      using (driver_id = auth.uid())
+      with check (status in ('arrived','in_progress'));
+      ```
+    - L'assignation initiale (`driver_id` + passage à `driver_en_route`)
+      et le passage à `completed` (impact financier) se font
+      **exclusivement** via Edge Functions `accept-ride` et
+      `complete-ride` (`service_role`), jamais par une policy `update`
+      ouverte au client.
 - **`ride_offers`**
   - `select` : `driver_id = auth.uid()`.
   - `update` : `driver_id = auth.uid()`, transition autorisée uniquement
-    `sent → refused` (le passage à `accepted` passe par `accept-ride` en
-    `service_role`, cf. Matching).
-  - `insert` : aucune policy client — créées uniquement par l'Edge Function
-    de matching.
+    `sent → refused` :
+    ```sql
+    create policy ride_offers_refuse on ride_offers for update
+    using (driver_id = auth.uid() and status = 'sent')
+    with check (status = 'refused');
+    ```
+  - `insert` : aucune policy client — créées uniquement par l'Edge
+    Function de matching.
 - **`payment_methods`**
   - `select`/`insert`/`update`/`delete` : `profile_id = auth.uid()`.
-- **`payments`** *(corrigé v2 — la v1 référençait une colonne
-  `profile_id` inexistante sur cette table)*
-  - `select` : accès via la course liée, pas de colonne directe :
+- **`payments`**
+  - `select` :
     ```sql
     create policy payments_select on payments for select using (
       exists (
@@ -380,54 +539,67 @@ la sécurité — voir section Paiements & retraits).
     );
     ```
   - `insert`/`update` : aucune policy client — écrit uniquement par
-    Edge Function (`service_role`) lors de la confirmation du paiement.
+    Edge Function (`service_role`).
 - **`driver_wallets`**
   - `select` : `driver_id = auth.uid()`.
-  - `insert`/`update` : aucune policy client — géré uniquement par
-    Edge Function (`service_role`), verrouillage transactionnel (cf.
-    Paiements & retraits).
+  - `insert`/`update` : aucune policy client.
 - **`wallet_transactions`**
   - `select` : `driver_id = auth.uid()`.
   - `insert`/`update` : aucune policy client.
 - **`payouts`**
   - `select` : `driver_id = auth.uid()`.
-  - `insert` : le client peut **initier** une demande (statut forcé à
-    `pending`, montant validé côté serveur dans l'Edge Function qui
-    traite ensuite la demande) ; alternative plus sûre retenue : même
-    l'`insert` initial passe par l'Edge Function `payout` en
-    `service_role`, le client ne fait qu'appeler la fonction, aucune
-    policy `insert` client sur cette table.
-  - `update` : aucune policy client — mis à jour uniquement par
-    l'Edge Function/webhook fournisseur.
+  - `insert`/`update` : aucune policy client — le client appelle l'Edge
+    Function `payout`, qui écrit avec `service_role`.
 - **`ratings`**
   - `insert` : `rater_id = auth.uid()`, uniquement si la course est
     `completed` et que l'utilisateur en est passager ou chauffeur.
   - `select` : les deux participants de la course concernée.
 
+## Grants par colonne — champs sensibles (v3, bloquant #6)
+
+RLS contrôle *quelles lignes* sont visibles/modifiables, pas *quelles
+colonnes*. Pour empêcher un utilisateur de modifier ses propres
+`rating_avg`, `rating_count`, `has_driver_profile` (`profiles`) ou son
+`verification_status` (`driver_profiles`) via un `update` par ailleurs
+autorisé par RLS sur sa propre ligne, on restreint les `grant` au niveau
+colonne pour le rôle `authenticated` :
+
+```sql
+revoke update on profiles from authenticated;
+grant update (full_name, avatar_url, active_role) on profiles to authenticated;
+
+revoke update on driver_profiles from authenticated;
+grant update (is_available, years_experience, default_payout_method_id)
+  on driver_profiles to authenticated;
+```
+
+`rating_avg`/`rating_count` ne sont modifiées que par le trigger
+`ratings_update_profile_rating` (`security definer`, contourne le grant
+par conception). `has_driver_profile` et `verification_status` ne sont
+modifiées que par les Edge Functions `complete-profile`/`become-driver`
+et par le processus de vérification chauffeur (hors scope de ce document).
+
 ## Matching chauffeur/passager (temps réel)
 
-**Refonte v2** — le matching v1 ne traçait rien par chauffeur individuel
-(pas de table dédiée), rendant impossible la relance après refus/expiration
-et l'anti-double-acceptation robuste. Le flux ci-dessous s'appuie sur
-`ride_offers`.
-
-1. **Demande** : le passager crée une ligne `rides` (`status = 'searching'`,
-   `driver_id = null`).
-2. **Recherche** : l'Edge Function `match-ride` (déclenchée sur `insert` de
-   `rides`, puis re-déclenchée périodiquement par `pg_cron` tant que
-   `status = 'searching'`) interroge `driver_locations` via
-   `ST_DWithin(position, pickup_position, rayon_metres)`, filtré sur
-   `driver_profiles.is_available = true`, `vehicles.category =
-   rides.category`, et **exclut les chauffeurs ayant déjà une
-   `ride_offers` `sent`/`refused`/`expired` pour cette course** (pas de
-   double-sollicitation).
+1. **Demande** : le passager appelle l'Edge Function `request-ride`
+   (v3 — plus d'`insert` client direct, voir section suivante), qui crée
+   la ligne `rides` (`status = 'searching'`, `driver_id = null`).
+2. **Recherche** : l'Edge Function `match-ride` (déclenchée après la
+   création de la course, puis re-déclenchée périodiquement par
+   `pg_cron` tant que `status = 'searching'`) interroge
+   `driver_locations` via `ST_DWithin(position, pickup_position,
+   rayon_metres)`, filtré sur `driver_profiles.is_available = true`,
+   `vehicles.category = rides.category`, et exclut les chauffeurs ayant
+   déjà une `ride_offers` `sent`/`refused`/`expired` pour cette course.
 3. **Création des offres** : pour chaque chauffeur trouvé, `insert` dans
    `ride_offers` (`status = 'sent'`, `expires_at = now() + interval '9
    seconds'`).
-4. **Notification** : chaque insertion déclenche un événement **Supabase
-   Realtime** sur le canal privé `driver:{driver_id}` (voir section
-   Realtime — autorisation), reçu côté FlutterFlow (écran Demande
-   entrante, compte à rebours local synchronisé sur `expires_at`).
+4. **Notification** : chaque insertion déclenche un événement Supabase
+   Realtime sur le canal privé `driver:{driver_id}` (voir section
+   Realtime), reçu côté FlutterFlow. L'écran Demande entrante charge
+   ensuite le détail de la course via la policy `rides_select_via_offer`
+   (corrige le bloquant #3 — le chauffeur peut désormais lire pickup,
+   destination, distance, montant avant d'accepter).
 5. **Acceptation atomique** — Edge Function `accept-ride`
    (`service_role`), transaction unique :
    ```sql
@@ -450,22 +622,18 @@ et l'anti-double-acceptation robuste. Le flux ci-dessous s'appuie sur
 
    commit;
    ```
-   C'est ce qui déclenche réellement `driver_en_route` (corrige le point
-   v1 où ce statut n'était jamais atteint).
 6. **Refus explicite** : update direct autorisé par RLS,
-   `ride_offers.status: sent → refused` (pas besoin d'Edge Function, pas
-   de risque de concurrence sur cette transition).
+   `ride_offers.status: sent → refused`.
 7. **Expiration** : job planifié (`pg_cron`, toutes les 5s) :
    - passe en `expired` les `ride_offers` `sent` dont `expires_at` est
      dépassé ;
    - si une course reste `searching` sans offre active au-delà d'un délai
      global configurable (ex. 2 minutes), passe `rides.status = 'expired'`.
 
-## Realtime — autorisation des canaux *(précisé v2)*
+## Realtime — autorisation des canaux
 
 Le canal `driver:{driver_id}` est un canal **privé** (Supabase Realtime
-Authorization). Une policy d'autorisation restreint l'écoute au chauffeur
-concerné uniquement :
+Authorization) :
 
 ```sql
 create policy "driver listens to own channel"
@@ -476,54 +644,86 @@ using (
 ```
 
 *Note d'implémentation* : l'API exacte de Realtime Authorization (nom de
-la fonction `realtime.topic()`, activation des canaux privés) doit être
-vérifiée contre la documentation Supabase au moment de l'implémentation —
-la fonctionnalité évolue. Cette section fixe l'intention (un chauffeur ne
-peut écouter que son propre canal), pas la syntaxe finale figée.
+la fonction `realtime.topic()`, activation des canaux privés) reste à
+vérifier contre la documentation Supabase au moment de l'implémentation —
+point déjà signalé en v2, toujours non tranché, non bloquant pour la
+suite du design mais **à valider avant d'écrire le code du matching**.
 
-## Estimation de prix (`estimate-fare`) *(précisé v2)*
+## Estimation & création de course (v3 — bloquant #5)
 
-Edge Function appelée depuis l'écran Estimation, **calcul serveur
-obligatoire** (jamais côté client, pour éviter la manipulation du prix
-affiché) :
-- Entrée : `pickup_position`, `dropoff_position`, `category`.
-- Calcule `distance_km`/`duration_min` via un service de routage externe
-  (fournisseur non tranché à ce stade — ex. Mapbox Directions ou OSRM
-  auto-hébergé — **décision ouverte**, à trancher avant implémentation de
-  cette fonction).
-- Applique la grille tarifaire par catégorie (barème non détaillé ici —
-  **décision produit ouverte**, hors scope de ce document technique).
-- Retourne un objet d'estimation **non persisté** tant que la course n'est
-  pas commandée ; au moment de l'`insert` dans `rides`, les mêmes valeurs
-  sont recalculées et stockées (`distance_km`, `duration_min`,
-  `base_fare`, `distance_fee`, `service_fee`, `total_fare`) pour figer le
-  prix de la course.
+**Problème corrigé** : en v2, l'écran Estimation appelait `estimate-fare`
+pour *afficher* un prix, mais c'est le client qui envoyait ensuite ce prix
+dans l'`insert` de `rides` — un client modifié pouvait donc soumettre un
+`total_fare` arbitraire.
 
-## Paiements & retraits — sécurisation *(refonte v2)*
+**Correction** : suppression de toute policy `insert` client sur `rides`.
+Une seule Edge Function crée la course :
+
+**`request-ride`** (`service_role`), entrée : `pickup_position`,
+`pickup_address`, `dropoff_position`, `dropoff_address`, `category`,
+`payment_method_id`.
+1. Vérifie que `payment_method_id` appartient bien à l'appelant
+   (`payment_methods.profile_id = auth.uid()`), sinon erreur.
+2. Recalcule `distance_km`/`duration_min` et le prix (même logique que
+   `estimate-fare`, idéalement factorisée dans un module partagé entre
+   les deux fonctions) — **jamais** de valeurs reçues du client utilisées
+   telles quelles pour le prix.
+3. `insert` la ligne `rides` avec les valeurs recalculées côté serveur.
+4. Retourne `ride_id` au client, qui navigue vers l'écran Course active.
+
+`estimate-fare` (appelée juste avant, pour l'affichage du prix à l'écran
+Estimation) et `request-ride` doivent donc partager le même calcul, pour
+que le prix affiché avant commande corresponde exactement au prix figé à
+la commande (à la variation de distance/durée temps réel près, si le
+routage est recalculé entre-temps — comportement à trancher lors de
+l'implémentation : figer le prix de l'estimation avec une courte validité,
+ou toujours recalculer à la commande).
+
+- Fournisseur de routage (Mapbox/OSRM/autre) : **décision ouverte**, hors
+  scope de ce document.
+- Barème tarifaire détaillé par catégorie : **décision produit ouverte**,
+  hors scope de ce document.
+
+## Paiements & retraits — sécurisation
 
 Le solde chauffeur et les retraits ne doivent jamais dépendre d'un calcul
 ou d'une décision côté client FlutterFlow.
 
-**Crédit (fin de course)** — trigger ou Edge Function `service_role`,
-déclenché quand `rides.status` passe à `completed` :
+**Crédit (fin de course)** — Edge Function `complete-ride`
+(`service_role`), appelée par le chauffeur (remplace l'`update` client
+direct de `rides.status = 'completed'`, désormais interdit par RLS) :
 ```sql
 begin;
+
+update rides
+set status = 'completed', completed_at = now()
+where id = :ride_id and driver_id = :driver_id and status = 'in_progress';
+-- si 0 ligne : déjà complétée ou statut invalide -> traiter comme idempotent,
+-- relire l'état courant et le renvoyer sans erreur bloquante au client
+
 insert into wallet_transactions (driver_id, ride_id, type, amount)
-values (:driver_id, :ride_id, 'ride_earning', :net_amount);
+values (:driver_id, :ride_id, 'ride_earning', :net_amount)
+on conflict do nothing; -- protégé par l'index unique partiel (ride_id) where type='ride_earning'
+-- vérifier le nombre de lignes affectées (ex. GET DIAGNOSTICS en PL/pgSQL) :
 
 update driver_wallets
 set balance = balance + :net_amount, updated_at = now()
-where driver_id = :driver_id;
+where driver_id = :driver_id
+  and :insert_affected_a_row; -- n'incrémente que si le crédit vient d'être réellement créé
+
 commit;
 ```
+Grâce à l'index unique partiel `wallet_transactions_ride_earning_once`, un
+appel dupliqué de `complete-ride` pour la même course (retry réseau,
+double-tap) ne peut jamais créditer deux fois — corrige le bloquant "crédit
+non idempotent".
 
 **Retrait (`payout`, Edge Function `service_role`)** :
-1. Le client génère un `idempotency_key` (UUID) côté FlutterFlow avant
-   l'appel, réutilisé tel quel en cas de retry réseau (double-tap, perte
-   de connexion) — la contrainte `unique` sur `payouts.idempotency_key`
-   rejette toute deuxième insertion avec la même clé.
-2. Transaction serveur avec verrou explicite sur la ligne de solde,
-   empêchant deux retraits concurrents de passer en même temps :
+1. Le client génère un `idempotency_key` (UUID) avant l'appel, réutilisé
+   tel quel en cas de retry réseau — la contrainte `unique` sur
+   `payouts.idempotency_key` rejette toute deuxième insertion avec la
+   même clé.
+2. Transaction serveur avec verrou explicite sur la ligne de solde :
    ```sql
    begin;
    select balance from driver_wallets where driver_id = :driver_id for update;
@@ -546,43 +746,49 @@ commit;
    - échec → `payouts.status = 'failed'` **et** remboursement (nouvelle
      transaction : `+amount` sur `driver_wallets.balance`, ligne
      `wallet_transactions` `type = 'payout_refund'`).
-4. Le client FlutterFlow lit uniquement `driver_wallets.balance` (jamais
+4. **Réconciliation (v3)** : un job planifié (`pg_cron`, ex. toutes les
+   2 minutes) interroge les `payouts` en `pending`/`processing` depuis
+   plus de N minutes sans webhook reçu, appelle l'API de statut du
+   fournisseur, et résout à `paid`/`failed` en conséquence — évite qu'un
+   retrait reste bloqué indéfiniment si le webhook du fournisseur est
+   perdu.
+5. Le client FlutterFlow lit uniquement `driver_wallets.balance` (jamais
    de recalcul local) et l'historique via `wallet_transactions`/`payouts`.
 
 ## Hors scope de ce document (nécessite un spec dédié avant implémentation)
 
-- Choix du fournisseur de routage pour `estimate-fare` (Mapbox/OSRM/autre)
-  et barème tarifaire détaillé.
+- Choix du fournisseur de routage pour `estimate-fare`/`request-ride`
+  (Mapbox/OSRM/autre) et barème tarifaire détaillé.
 - Intégration technique réelle des API mobile money (Orange Money, Wave) —
   ce document définit le contrat interne (`payouts`, idempotence,
-  transaction), pas l'appel HTTP au fournisseur ni la gestion de ses
-  webhooks spécifiques.
+  transaction, réconciliation), pas l'appel HTTP au fournisseur ni le
+  détail de ses webhooks.
 - Chat in-app passager/chauffeur.
 - Partage de trajet (génération de lien, page de suivi publique).
 - Notifications push (FCM) au-delà du canal Realtime in-app.
-- Suivi de position en arrière-plan (app fermée/minimisée) : le rafraîchissement
-  toutes les 5s décrit dans la spec écrans suppose l'app au premier plan.
-  Le suivi en arrière-plan réel nécessite une capacité de géolocalisation
-  native (service Android/iOS dédié) dont la disponibilité dans FlutterFlow
-  **doit être vérifiée** — susceptible de dépendre d'un plan payant ou
-  d'un plugin/code natif personnalisé. Risque ouvert, à trancher avant de
-  considérer le matching temps réel comme fiable en production.
+- Suivi de position en arrière-plan (app fermée/minimisée) — le
+  rafraîchissement toutes les 5s décrit dans la spec écrans suppose l'app
+  au premier plan. Capacité native à vérifier, possible dépendance à un
+  plan payant ou un plugin/code natif. Risque ouvert.
 - Système de bonus/gamification chauffeur (mentionné sur les maquettes,
   logique de calcul non spécifiée ici).
+- Écriture des Edge Functions elles-mêmes (`match-ride`, `accept-ride`,
+  `request-ride`, `estimate-fare`, `complete-ride`, `payout`,
+  `complete-profile`) et des jobs `pg_cron` comme code déployable — ce
+  document fixe leur contrat transactionnel, pas leur implémentation.
 
-## Changelog (v1 → v2, suite revue technique du 2026-08-24)
+## Changelog (v2 → v3, suite 2e revue technique du 2026-08-24)
 
 | # | Point soulevé | Correction appliquée |
 |---|---|---|
-| 1 | `active_driver_public` sans filtre passager | Filtre `r.passenger_id = auth.uid()` + `security_invoker = true` + `grant` explicite |
-| 2 | RLS `payments` référence `profile_id` inexistant | Policy réécrite via `exists (... rides ...)`, écriture réservée à `service_role` |
-| 3 | Moyen de paiement choisi non stocké sur la course | Ajout `rides.payment_method_id` |
-| 4 | Pas de modèle d'offre pour le matching | Ajout table `ride_offers` (sollicitations, expiration, refus) |
-| 5 | `driver_en_route` jamais déclenché | Statuts simplifiés (`accepted` supprimé), `accept-ride` positionne directement `driver_en_route` |
-| 6 | RLS `driver_locations` n'incluait pas `in_progress` | Ajouté à la liste de statuts autorisés |
-| 7 | Wallet non sécurisé (pas d'idempotence/statut/verrou) | Ajout `driver_wallets` (solde serveur), `payouts` (idempotence, statut, référence fournisseur), transaction avec `for update` |
-| — | `full_name not null` sans étape de saisie fiable | Création du profil déplacée après un écran "Compléter le profil" dédié (voir spec écrans) |
-| — | Destinations favorites sans table | Ajout `saved_places` |
-| — | `estimate-fare`/`payout`/Realtime insuffisamment spécifiés | Sections dédiées ajoutées ; fournisseur de routage et intégration mobile money restent des décisions ouvertes explicites |
-| — | Autorisation du canal Realtime absente | Section "Realtime — autorisation des canaux" ajoutée |
-| — | Position en arrière-plan non couverte | Listé explicitement en risque ouvert (Hors scope) |
+| 1 | `rides` référence `payment_methods` avant sa création (migration invalide) | FK inline supprimée, ajoutée par `alter table` à l'étape 10 de l'ordre de migration |
+| 2 | `security_invoker` sur `active_driver_public` bloque la lecture (RLS de `profiles`/`driver_profiles`/`vehicles` restreint à `auth.uid()`) | Vue remplacée par la fonction `security definer` `get_active_driver_info`, qui vérifie explicitement `passenger_id = auth.uid()` dans son corps |
+| 3 | Le chauffeur ne peut pas lire `rides` avant acceptation (`driver_id` encore `null`) | Policy `rides_select_via_offer` ajoutée (lecture autorisée si une `ride_offers` `sent` non expirée existe pour ce chauffeur) |
+| 4 | Création de profil (`insert` direct) incompatible avec l'absence de policy `insert` | Déplacée dans l'Edge Function `complete-profile` (`service_role`) ; policies `insert` client supprimées sur `profiles`/`driver_profiles`/`driver_wallets` |
+| 5 | Prix falsifiable (client envoie `total_fare` dans l'`insert`) | `insert` client sur `rides` supprimé ; Edge Function `request-ride` recalcule et crée la course côté serveur |
+| 6 | Champs sensibles modifiables (`rating_avg`, `verification_status`...) | Grants par colonne sur `profiles`/`driver_profiles` ; `rating_avg`/`rating_count` mis à jour par trigger uniquement |
+| — | Pas de garantie d'un seul moyen de paiement par défaut | Index unique partiel `payment_methods_one_default_per_profile` |
+| — | `default_payout_method_id` sans vérification de propriété | Trigger `check_default_payout_owner` |
+| — | Crédit du wallet non idempotent (retry = double crédit) | Index unique partiel `wallet_transactions_ride_earning_once` ; crédit déplacé dans `complete-ride` (`service_role`) |
+| — | Pas de reprise pour les `payouts` bloqués en `pending` | Job de réconciliation `pg_cron` ajouté à la section Paiements & retraits |
+| — | Edge Functions/triggers/`pg_cron` non identifiés comme étapes de migration | Section "Ordre de migration" ajoutée |

@@ -1,6 +1,6 @@
 # TAGA — Spec d'implémentation FlutterFlow (écran par écran)
 
-Date : 2026-08-24 (v2 — corrections suite revue technique)
+Date : 2026-08-24 (v3 — corrections suite 2e revue technique)
 Statut : approuvé (design), à construire dans FlutterFlow.
 
 ## Portée
@@ -26,7 +26,19 @@ retrait lit `driver_wallets.balance` (source serveur) au lieu de calculer
 le solde côté client, et le retrait passe par une clé d'idempotence ;
 écran Accueil branché sur la table `saved_places` ; composants
 réutilisables `PaymentMethodTile`, `RideHistoryTile`, `BottomNavBar`
-ajoutés à la liste. Voir **Changelog** en fin de document.
+ajoutés à la liste.
+
+**v3 — changements suite 2e revue** : écran "Compléter le profil" appelle
+désormais l'Edge Function `complete-profile` au lieu d'`insert` directs
+(RLS ne les autorise plus) ; écran Estimation crée la course via l'Edge
+Function `request-ride` (prix recalculé serveur, plus falsifiable) ;
+écran Course active lit les infos chauffeur via la fonction RPC
+`get_active_driver_info` (remplace la vue `active_driver_public`,
+inutilisable avec `security_invoker` + RLS restrictives) ; écran Demande
+entrante peut désormais lire la course avant acceptation (nouvelle policy
+`rides_select_via_offer`) ; écran Course en cours termine la course via
+l'Edge Function `complete-ride` (crédit idempotent) au lieu d'un `update`
+client direct. Voir **Changelog** en fin de document.
 
 Conventions transverses :
 - App mobile uniquement (portrait), largeur cible 375–430px, pas de layout
@@ -50,7 +62,7 @@ Conventions transverses :
 - **`MapView`** : carte avec marqueurs pickup/dropoff/chauffeur, tracé
   d'itinéraire.
 - **`DriverInfoCard`** : avatar, nom, note, véhicule, boutons appel/message
-  (alimenté par la vue `active_driver_public`).
+  (alimenté par la fonction RPC `get_active_driver_info`).
 - **`RideOptionCard`** : catégorie de course, icône, prix, temps d'attente,
   état sélectionné/non sélectionné.
 - **`RatingStars`** : sélecteur 1–5 étoiles interactif.
@@ -181,6 +193,10 @@ Conventions transverses :
 Corrige le point de la revue : `profiles.full_name` est `not null`, mais
 rien avant v2 ne garantissait sa saisie avant l'`insert`.
 
+**v3** : les RLS du schéma n'autorisent plus aucun `insert` client direct
+sur `profiles`/`driver_profiles`/`driver_wallets` (bloquant #4 de la 2e
+revue). La création passe désormais par une Edge Function transactionnelle.
+
 - **Widgets** : `Column`, titre "Comment on vous appelle ?", champ texte
   nom complet, `PrimaryButton` "Continuer".
 - **Composants réutilisables** : `PrimaryButton`.
@@ -191,16 +207,17 @@ rien avant v2 ne garantissait sa saisie avant l'`insert`.
     `id = auth.uid()`. Si une ligne existe déjà → skip immédiat vers
     `/client/home` ou `/driver/online` selon `active_role` (cas d'un
     utilisateur déjà inscrit qui repasse par ce flux, ou retour arrière).
-  - `Continuer` : `insert` dans `profiles` (`full_name = fullName`,
-    `phone` = numéro vérifié, `active_role = role`,
-    `has_driver_profile = (role == 'driver')`) ; si `role = 'driver'`,
-    `insert` correspondant dans `driver_profiles`
-    (`verification_status = 'pending'`) **et** `insert` dans
-    `driver_wallets` (`balance = 0`) pour initialiser le solde. Puis
-    navigate `/client/home` ou `/driver/online`.
+  - `Continuer` : appel Edge Function `complete-profile`
+    (`full_name`, `role`), `service_role`, transaction unique :
+    `insert` dans `profiles` ; si `role = 'driver'`, `insert` dans
+    `driver_profiles` (`verification_status = 'pending'`) **et**
+    `insert` dans `driver_wallets` (`balance = 0`). Succès → navigate
+    `/client/home` ou `/driver/online`.
 - **Routes** : `/complete-profile`.
-- **Tables Supabase** : `select`/`insert` sur `profiles` ; `insert` sur
-  `driver_profiles` et `driver_wallets` si `role = 'driver'`.
+- **Tables Supabase** : `select` client sur `profiles` (vérification
+  d'existence) ; tous les `insert` (`profiles`, `driver_profiles`,
+  `driver_wallets`) passent par `complete-profile` (`service_role`,
+  aucune policy `insert` client sur ces tables).
 - **Règles de visibilité** : accessible uniquement avec une session Auth
   valide (sinon redirect `/role-choice`).
 - **Responsive mobile** : champ texte avec clavier standard, bouton
@@ -210,6 +227,9 @@ rien avant v2 ne garantissait sa saisie avant l'`insert`.
   - [ ] Un utilisateur avec profil déjà existant ne repasse jamais par la
     création (skip automatique).
   - [ ] `driver_wallets` initialisé à 0 pour tout nouveau chauffeur.
+  - [ ] Appel en double de `complete-profile` (retry réseau) ne crée pas
+    deux profils (contrainte `primary key` sur `profiles.id = auth.uid()`
+    protège déjà nativement ce cas).
 
 ## Écran 4 — Profil (commun, sections conditionnelles par rôle)
 
@@ -331,7 +351,10 @@ rien avant v2 ne garantissait sa saisie avant l'`insert`.
 
 ## Écran 8 — Estimation
 
-*(v2 — enregistre `payment_method_id` sur la course, prix calculé serveur)*
+*(v3 — création de course déplacée dans l'Edge Function `request-ride`,
+plus d'`insert` client direct : le prix restait falsifiable en v2 puisque
+le client renvoyait dans l'`insert` les valeurs qu'il avait lui-même
+reçues d'`estimate-fare`, sans revérification serveur à la création)*
 
 - **Widgets** : `MapView` (tracé pickup→dropoff), en-tête trajet
   (adresses + bouton retour), `ListView` de `RideOptionCard` (Go, Partage,
@@ -340,19 +363,23 @@ rien avant v2 ne garantissait sa saisie avant l'`insert`.
 - **Composants réutilisables** : `MapView`, `RideOptionCard`,
   `PrimaryButton`.
 - **Variables d'état** : `selectedCategory` (Page State), `fareEstimates`
-  (Page State, calculées via Edge Function `estimate-fare` à l'ouverture —
-  calcul serveur, jamais recalculé côté client), `selectedPaymentMethodId`
-  (Page State, initialisé au moyen par défaut).
+  (Page State, calculées via Edge Function `estimate-fare` à l'ouverture,
+  affichage uniquement), `selectedPaymentMethodId` (Page State, initialisé
+  au moyen par défaut).
 - **Actions** :
   - Tap `RideOptionCard` : `selectedCategory = category`.
   - `Changer` (paiement) → navigate `/payment-methods` (retour ensuite).
-  - `Commander` : `insert` dans `rides` (`status = 'searching'`,
-    `payment_method_id = selectedPaymentMethodId`, prix/distance figés
-    depuis `fareEstimates`) → navigate `/client/active-ride?ride_id=...`.
+  - `Commander` : appel Edge Function `request-ride` (`pickup_position`,
+    `pickup_address`, `dropoff_position`, `dropoff_address`,
+    `selectedCategory`, `selectedPaymentMethodId`) — la fonction vérifie
+    la propriété du moyen de paiement, **recalcule** distance/durée/prix
+    côté serveur (le client n'envoie ni prix ni distance), crée la ligne
+    `rides` et retourne `ride_id` → navigate
+    `/client/active-ride?ride_id=...`.
 - **Routes** : `/client/estimate`.
-- **Tables Supabase** : appel Edge Function `estimate-fare` (lecture) ;
-  `insert` sur `rides` (avec `payment_method_id`) ; lecture de
-  `payment_methods` pour le sélecteur.
+- **Tables Supabase** : appel Edge Function `estimate-fare` (affichage) ;
+  appel Edge Function `request-ride` (création — aucune policy `insert`
+  client sur `rides`) ; lecture de `payment_methods` pour le sélecteur.
 - **Règles de visibilité** : bouton `Commander` `disabled` si aucune
   catégorie sélectionnée ou aucun moyen de paiement enregistré (dans ce
   cas, message incitant à en ajouter un).
@@ -360,8 +387,10 @@ rien avant v2 ne garantissait sa saisie avant l'`insert`.
   catégories à l'avenir ; bouton `Commander` toujours visible en bas
   (sticky).
 - **Critères d'acceptation** :
-  - [ ] Prix affiché = celui calculé par `estimate-fare` (jamais recalculé
-    localement).
+  - [ ] Le prix stocké sur `rides` est celui recalculé par `request-ride`,
+    jamais une valeur transmise telle quelle par le client.
+  - [ ] `request-ride` rejette la commande si `payment_method_id` ne
+    appartient pas à l'appelant.
   - [ ] Impossible de commander sans moyen de paiement valide.
   - [ ] La ligne `rides` créée contient `payment_method_id` correctement
     renseigné.
@@ -387,8 +416,10 @@ rien avant v2 ne garantissait sa saisie avant l'`insert`.
     `rides.status = 'cancelled'`.
 - **Routes** : `/client/active-ride?ride_id=...`.
 - **Tables Supabase** : `select` + souscription Realtime sur `rides` et
-  `driver_locations` (via la vue `active_driver_public` pour les infos
-  chauffeur).
+  `driver_locations` ; infos chauffeur (`DriverInfoCard`) chargées via
+  l'appel RPC `get_active_driver_info(ride_id)` *(v3 — remplace la vue
+  `active_driver_public`, devenue inutilisable avec `security_invoker`
+  combiné aux RLS restrictives de `profiles`/`driver_profiles`/`vehicles`)*.
 - **Règles de visibilité** : le bandeau de statut et les actions
   disponibles changent selon `rides.status`
   (`driver_en_route`→"en approche", `arrived`→"chauffeur arrivé",
@@ -496,8 +527,11 @@ rien avant v2 ne garantissait sa saisie avant l'`insert`.
     côté UI (l'expiration effective en base est gérée par le job
     `pg_cron`, cf. schéma).
 - **Routes** : `/driver/incoming-request`.
-- **Tables Supabase** : `select` sur `ride_offers` + `rides` (lecture) ;
-  `update` sur `ride_offers` (refus) ; `accept-ride` (Edge Function) pour
+- **Tables Supabase** : `select` sur `ride_offers` + `rides` (lecture —
+  possible *(v3)* grâce à la policy `rides_select_via_offer`, qui autorise
+  la lecture d'une course tant qu'une offre `sent` non expirée existe pour
+  ce chauffeur, même si `rides.driver_id` est encore `null`) ; `update`
+  sur `ride_offers` (refus) ; `accept-ride` (Edge Function) pour
   l'acceptation.
 - **Règles de visibilité** : écran présenté uniquement en overlay/push
   quand un événement Realtime `driver:{driver_id}` est reçu et
@@ -557,25 +591,34 @@ rien avant v2 ne garantissait sa saisie avant l'`insert`.
   `progressRatio` (calculé côté client à partir de la position vs
   distance totale — affichage seulement, ne modifie aucune donnée
   financière).
+*(v3 — "Terminer la course" appelle l'Edge Function `complete-ride` au
+lieu d'un `update` client direct : RLS n'autorise plus le client à
+positionner `status = 'completed'`, seules les transitions non financières
+`arrived`/`in_progress` restent en écriture directe, cf. schéma
+§RLS `rides`)*
+
 - **Actions** :
-  - `Terminer la course` : update `rides.status = 'completed'`,
-    `completed_at = now()` ; déclenche côté serveur (trigger/Edge
-    Function `service_role`, cf. schéma §Paiements & retraits) la création
-    de la ligne `payments`, l'incrément de `driver_wallets.balance` et la
-    ligne `wallet_transactions` (`type = 'ride_earning'`) → navigate
-    `/driver/payout-recap?ride_id=...`.
+  - `Terminer la course` : appel Edge Function `complete-ride`
+    (`ride_id`) — transaction serveur : `rides.status = 'completed'`,
+    `completed_at = now()`, création de la ligne `wallet_transactions`
+    (`type = 'ride_earning'`, protégée par l'index unique partiel
+    `wallet_transactions_ride_earning_once` contre un double crédit en
+    cas de retry), incrément de `driver_wallets.balance`. Succès →
+    navigate `/driver/payout-recap?ride_id=...`.
   - `Urgence` : ouverture d'un flux d'assistance (hors scope détail).
 - **Routes** : `/driver/ride-in-progress?ride_id=...`.
-- **Tables Supabase** : `update` sur `rides` (le reste — `payments`,
-  `driver_wallets`, `wallet_transactions` — est écrit exclusivement côté
-  serveur, jamais directement par le client).
+- **Tables Supabase** : aucune écriture directe sur `rides` pour cette
+  transition — tout passe par `complete-ride` (`service_role`) : `rides`,
+  `payments`, `driver_wallets`, `wallet_transactions`.
 - **Règles de visibilité** : accessible uniquement si `driver_id =
   auth.uid()` et `status = 'in_progress'`.
 - **Responsive mobile** : badge gain et bouton principal toujours visibles.
 - **Critères d'acceptation** :
-  - [ ] `Terminer la course` déclenche bien la création serveur de la
-    ligne `wallet_transactions` et l'incrément de `driver_wallets.balance`
+  - [ ] `complete-ride` déclenche bien la création serveur de la ligne
+    `wallet_transactions` et l'incrément de `driver_wallets.balance`
     (vérifiable en relisant le solde après coup, pas de calcul client).
+  - [ ] Un double appel de `complete-ride` pour la même course (retry
+    réseau, double-tap) ne crédite le wallet qu'une seule fois.
   - [ ] Impossible de terminer une course qui n'est pas `in_progress`.
   - [ ] Navigation automatique vers Récap & retrait après complétion.
 
@@ -633,11 +676,13 @@ rien avant v2 ne garantissait sa saisie avant l'`insert`.
 - Suivi de position en arrière-plan (app fermée/minimisée) — risque ouvert,
   cf. schéma Supabase.
 
-## Changelog (v1 → v2, suite revue technique du 2026-08-24)
+## Changelog
 
 Voir le changelog détaillé dans `2026-08-24-taga-supabase-schema.md`
 (section correspondante) pour la correspondance complète entre chaque
 point soulevé et sa correction. Résumé côté écrans :
+
+**v1 → v2**
 
 | Écran | Changement |
 |---|---|
@@ -649,4 +694,14 @@ point soulevé et sa correction. Résumé côté écrans :
 | Navigation (13) | Démarre bien à `driver_en_route` (plus de statut manquant) |
 | Course en cours (14) | Écritures financières déplacées côté serveur exclusivement |
 | Récap & retrait (15) | Solde lu depuis `driver_wallets`, retrait avec clé d'idempotence |
+
+**v2 → v3**
+
+| Écran | Changement |
+|---|---|
+| Compléter le profil (3bis) | `insert` directs remplacés par l'appel Edge Function `complete-profile` (RLS n'autorise plus l'`insert` client sur `profiles`/`driver_profiles`/`driver_wallets`) |
+| Estimation (8) | Création de course déplacée dans l'Edge Function `request-ride` (prix recalculé serveur, plus falsifiable) |
+| Course active (9) | Infos chauffeur lues via RPC `get_active_driver_info` au lieu de la vue `active_driver_public` (devenue inutilisable) |
+| Demande entrante (12) | Lecture de la course avant acceptation désormais possible (policy `rides_select_via_offer`) |
+| Course en cours (14) | "Terminer la course" appelle l'Edge Function `complete-ride` (crédit idempotent) au lieu d'un `update` client direct |
 | Transverse | Ajout composants `PaymentMethodTile`, `RideHistoryTile`, `BottomNavBar` ; Accueil branché sur `saved_places` |
