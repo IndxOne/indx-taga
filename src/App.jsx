@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import PhoneFrame from './components/PhoneFrame'
 import RoleChoice from './screens/RoleChoice'
+import Onboarding from './screens/Onboarding'
 
 function Stub({ name }) {
   return <div className="p-6 text-taga-navy font-semibold">{name} (à venir)</div>
@@ -12,7 +13,7 @@ function App() {
       <PhoneFrame>
         <Routes>
           <Route path="/" element={<RoleChoice />} />
-          <Route path="/onboarding" element={<Stub name="Onboarding" />} />
+          <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/client/home" element={<Stub name="Accueil" />} />
           <Route path="/client/estimate" element={<Stub name="Estimation" />} />
           <Route path="/client/active-ride" element={<Stub name="Course active" />} />
