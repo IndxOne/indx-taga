@@ -2,6 +2,18 @@
 
 Source : `docs/superpowers/plans/2026-08-24-taga-prototype-screens.md` (21 tâches, code complet). Ce backlog répartit ces mêmes tâches en 3 lots pour exécution par 3 agents IA différents, sans dupliquer le code — chaque ticket référence le numéro de tâche exact à ouvrir dans le plan.
 
+## État d'avancement — 24 août 2026
+
+Les lots suivants sont implémentés localement :
+
+- **Fondations** : terminé — routing, store et composants partagés disponibles.
+- **Parcours Client** : terminé — composants client et écrans `Home`, `Estimate`, `ActiveRide`, `RideEnd`.
+- **Parcours Chauffeur** : terminé — écrans `Online`, `IncomingRequest`, `Navigation`, `RideInProgress`, `PayoutRecap`.
+- **Navigation applicative** : en cours de finalisation — routes Profil, Historique et Moyens de paiement ajoutées ; barre de navigation présente sur les écrans principaux et liens chauffeur opérationnels.
+- **Onboarding complémentaire** : ajouté — `Splash`, `Otp` et `Profile` sont routés.
+
+Validation locale effectuée : `npm run build` et `npm run lint` passent. Aucun push n'est prévu dans cette session.
+
 ## Règle d'ordre
 
 **Le lot Fondations doit être terminé et pushé avant que les deux autres lots démarrent.** Les lots Client et Chauffeur peuvent ensuite tourner en parallèle — ils ne se touchent pas (fichiers disjoints : `src/screens/client/*` vs `src/screens/driver/*`), mais tous deux dépendent des composants et du routing posés par les Fondations.
@@ -78,6 +90,22 @@ Chaque ticket = une tâche du plan, exécutée telle quelle (steps, code, commit
 **Ordre interne** : D1→D2→D3→D4→D5, chaque écran navigue vers le suivant.
 
 **Definition of Done du lot** : `npm run build && npm run lint` passent ; flow complet jouable manuellement `/` → chauffeur → `/onboarding` → `/driver/online` (toggle dispo → Simuler) → `/driver/incoming-request` (Accepter) → `/driver/navigation` (2 clics) → `/driver/ride-in-progress` (Terminer) → `/driver/payout-recap` → "Reprendre en ligne" → retour `/driver/online`. Solde du portefeuille augmenté de 2 720 F par rapport à sa valeur initiale (25 120 → 27 840).
+
+**État** : ✅ implémenté et validé par build/lint. Le correctif de mise en page de `Online` place désormais la carte en arrière-plan et le panneau d'informations au premier plan.
+
+---
+
+## Lot 4 — Navigation et écrans transverses
+
+| # | Ticket | État | Livrable |
+|---|---|---|---|
+| N1 | Barre de navigation principale | ✅ | `src/components/BottomNavBar.jsx`, utilisée sur les écrans client et transverses |
+| N2 | Navigation chauffeur | ✅ | Boutons `Travail`, `Gains`, `Courses`, `Profil` dans `src/screens/driver/Online.jsx` |
+| N3 | Écrans Profil, Historique, Paiements | ✅ | `src/screens/Profile.jsx`, `src/screens/RideHistory.jsx`, `src/screens/PaymentMethods.jsx` |
+| N4 | Splash et vérification OTP | ✅ | `src/screens/Splash.jsx`, `src/screens/Otp.jsx` |
+| N5 | Harmoniser la barre chauffeur avec le composant partagé | ✅ (décision : garder la nav locale) | La nav de `Online` reste stylée localement (bandeau navy) plutôt que `BottomNavBar` (fond blanc) — mieux intégrée visuellement au bottom sheet sombre de l'écran. Rendue fonctionnelle (onglets Gains/Courses/Profil menaient nulle part avant, désormais routés + état actif via `useLocation`). |
+
+**Definition of Done du lot** : chaque bouton ouvre la route attendue, l'onglet actif est identifiable, les écrans transverses restent accessibles depuis Client et Chauffeur, et `npm run build && npm run lint` passent.
 
 ---
 
