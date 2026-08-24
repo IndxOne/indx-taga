@@ -2,13 +2,8 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
 import MapView from '../../components/MapView'
 import AmountTile from '../../components/AmountTile'
-
-const NAV_ITEMS = [
-  { label: 'Travail', icon: '🚗', path: '/driver/online' },
-  { label: 'Gains', icon: '▣', path: '/payment-methods' },
-  { label: 'Courses', icon: '◷', path: '/ride-history' },
-  { label: 'Profil', icon: '♙', path: '/profile' },
-]
+import ToggleSwitch from '../../components/ToggleSwitch'
+import { DRIVER_NAV_ITEMS, ROUTES } from '../../navigation/routes'
 
 export default function Online() {
   const navigate = useNavigate()
@@ -54,25 +49,21 @@ export default function Online() {
         <p className="text-xs text-white/60">Courses · {driverRidesToday} · En ligne · {driverHoursOnline}</p>
 
         <div className="flex items-center justify-between bg-white/10 rounded-xl px-4 py-3">
-          <label className="flex items-center gap-3 text-sm font-medium" htmlFor="availability-toggle">
-            <input
-              id="availability-toggle"
-              type="checkbox"
-              checked={driverAvailable}
-              onChange={(event) => setDriverAvailable(event.target.checked)}
-              className="w-5 h-5 accent-taga-green"
-            />
-            Disponible pour course
-          </label>
+          <ToggleSwitch
+            id="availability-toggle"
+            checked={driverAvailable}
+            onChange={setDriverAvailable}
+            label="Disponible pour course"
+          />
           {driverAvailable && (
-            <button type="button" onClick={() => navigate('/driver/incoming-request')} className="text-taga-mango text-sm font-semibold">
+            <button type="button" onClick={() => navigate(ROUTES.driverIncomingRequest)} className="text-taga-mango text-sm font-semibold">
               Simuler →
             </button>
           )}
         </div>
 
         <nav aria-label="Navigation chauffeur" className="grid grid-cols-4 border-t border-white/15 pt-3">
-          {NAV_ITEMS.map((item) => {
+          {DRIVER_NAV_ITEMS.map((item) => {
             const active = location.pathname === item.path
             return (
               <button
