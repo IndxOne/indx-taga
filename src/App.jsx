@@ -6,10 +6,11 @@ import Home from './screens/client/Home'
 import Estimate from './screens/client/Estimate'
 import ActiveRide from './screens/client/ActiveRide'
 import RideEnd from './screens/client/RideEnd'
-
-function Stub({ name }) {
-  return <div className="p-6 text-taga-navy font-semibold">{name} (à venir)</div>
-}
+import Online from './screens/driver/Online'
+import IncomingRequest from './screens/driver/IncomingRequest'
+import Navigation from './screens/driver/Navigation'
+import RideInProgress from './screens/driver/RideInProgress'
+import PayoutRecap from './screens/driver/PayoutRecap'
 
 function App() {
   return (
@@ -22,11 +23,11 @@ function App() {
           <Route path="/client/estimate" element={<Estimate />} />
           <Route path="/client/active-ride" element={<ActiveRide />} />
           <Route path="/client/ride-end" element={<RideEnd />} />
-          <Route path="/driver/online" element={<Stub name="En ligne" />} />
-          <Route path="/driver/incoming-request" element={<Stub name="Demande entrante" />} />
-          <Route path="/driver/navigation" element={<Stub name="Navigation" />} />
-          <Route path="/driver/ride-in-progress" element={<Stub name="Course en cours" />} />
-          <Route path="/driver/payout-recap" element={<Stub name="Récap & retrait" />} />
+          <Route path="/driver/online" element={<Online />} />
+          <Route path="/driver/incoming-request" element={<IncomingRequest />} />
+          <Route path="/driver/navigation" element={<Navigation />} />
+          <Route path="/driver/ride-in-progress" element={<RideInProgress />} />
+          <Route path="/driver/payout-recap" element={<PayoutRecap />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </PhoneFrame>
