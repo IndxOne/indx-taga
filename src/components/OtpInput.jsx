@@ -5,12 +5,21 @@ export default function OtpInput({ value, onChange, length = 6 }) {
   const digits = value.padEnd(length, ' ').split('').slice(0, length)
 
   const handleChange = (index, rawChar) => {
-    const char = rawChar.replace(/\D/g, '').slice(-1)
+    const chars = rawChar.replace(/\D/g, '').slice(0, length - index).split('')
+    const char = chars[0] || ''
     const next = value.split('')
-    next[index] = char
+    if (chars.length > 0) {
+      chars.forEach((item, offset) => {
+        next[index + offset] = item
+      })
+    } else {
+      next.splice(index, 1)
+    }
     const joined = next.join('').slice(0, length).replace(/\s/g, '')
     onChange(joined)
-    if (char && index < length - 1) {
+    if (chars.length > 1) {
+      inputsRef.current[Math.min(index + chars.length, length - 1)]?.focus()
+    } else if (char && index < length - 1) {
       inputsRef.current[index + 1]?.focus()
     }
   }
@@ -22,7 +31,7 @@ export default function OtpInput({ value, onChange, length = 6 }) {
   }
 
   return (
-    <div className="flex gap-2 justify-center">
+    <div className="flex gap-2 justify-center" role="group" aria-label="Code de vérification à six chiffres">
       {digits.map((digit, index) => (
         <input
           key={index}
@@ -30,6 +39,9 @@ export default function OtpInput({ value, onChange, length = 6 }) {
           type="tel"
           inputMode="numeric"
           maxLength={1}
+          aria-label={`Chiffre ${index + 1} sur ${length}`}
+          autoComplete={index === 0 ? 'one-time-code' : 'off'}
+          autoFocus={index === 0}
           value={digit.trim()}
           onChange={(e) => handleChange(index, e.target.value)}
           onKeyDown={(e) => handleKeyDown(index, e)}
