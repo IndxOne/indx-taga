@@ -1,6 +1,6 @@
 # TAGA — Spec d'implémentation FlutterFlow (écran par écran)
 
-Date : 2026-08-24
+Date : 2026-08-24 (v2 — corrections suite revue technique)
 Statut : approuvé (design), à construire dans FlutterFlow.
 
 ## Portée
@@ -8,12 +8,25 @@ Statut : approuvé (design), à construire dans FlutterFlow.
 Ce document documente, écran par écran, la réalisation finale dans
 FlutterFlow : widgets, composants réutilisables, variables d'état, actions
 par bouton, routes, tables Supabase concernées (voir
-`2026-08-24-taga-supabase-schema.md`), règles de visibilité, comportement
-responsive mobile, et critères d'acceptation.
+`2026-08-24-taga-supabase-schema.md`, v2), règles de visibilité,
+comportement responsive mobile, et critères d'acceptation.
 
 Base UX : `2026-08-24-taga-prototype-design.md` (prototype React) et les
-maquettes dans `docs/mockups/`. 16 écrans au total : 6 écrans communs, 4
-écrans client, 5 écrans chauffeur, plus l'écran de rôle.
+maquettes dans `docs/mockups/`. **17 écrans** au total (v2 — ajout de
+l'écran "Compléter le profil") : 7 écrans communs, 4 écrans client, 5
+écrans chauffeur, plus l'écran de rôle.
+
+**v2 — changements suite revue** : nouvel écran "Compléter le profil"
+(la création de `profiles` exige `full_name`, ce que l'OTP seul ne
+garantissait pas) ; écran Demande entrante branché sur `ride_offers` (plus
+sur un événement Realtime générique) ; statut `driver_en_route` réellement
+déclenché à l'acceptation (remplace `accepted`) ; écran Estimation
+enregistre désormais `payment_method_id` sur la course ; écran Récap &
+retrait lit `driver_wallets.balance` (source serveur) au lieu de calculer
+le solde côté client, et le retrait passe par une clé d'idempotence ;
+écran Accueil branché sur la table `saved_places` ; composants
+réutilisables `PaymentMethodTile`, `RideHistoryTile`, `BottomNavBar`
+ajoutés à la liste. Voir **Changelog** en fin de document.
 
 Conventions transverses :
 - App mobile uniquement (portrait), largeur cible 375–430px, pas de layout
@@ -22,6 +35,9 @@ Conventions transverses :
   référencés par nom dans chaque écran.
 - Toute donnée affichée provient de Supabase (plus de mock à ce stade —
   contrairement au prototype React).
+- **Suivi de position en arrière-plan non couvert par ce document** (risque
+  ouvert, voir schéma Supabase §Hors scope) — les écrans ci-dessous
+  supposent l'app au premier plan.
 
 ## Composants réutilisables (transverses)
 
@@ -41,6 +57,14 @@ Conventions transverses :
 - **`AmountTile`** : libellé + montant formaté FCFA.
 - **`EmptyState`** : icône + message, pour listes vides (historique sans
   course, etc.).
+- **`PaymentMethodTile`** *(v2)* : logo fournisseur (Orange Money/Wave),
+  numéro masqué, badge "par défaut", actions (définir par défaut,
+  supprimer).
+- **`RideHistoryTile`** *(v2)* : date, trajet résumé (adresse pickup →
+  dropoff), montant (`AmountTile` interne), icône statut.
+- **`BottomNavBar`** *(v2)* : barre de navigation basse à 4 onglets
+  (Accueil/Trajets/Paiements/Profil côté client — équivalent
+  Travail/Gains/Courses/Profil côté chauffeur, cf. maquette "En ligne").
 
 ---
 
@@ -55,24 +79,25 @@ Conventions transverses :
   après résolution de la session (max 1.5s).
 - **Routes** : `/` (route initiale de l'app).
   - Pas de session → `/role-choice`.
-  - Session valide, `has_driver_profile = false` → `/client/home`.
-  - Session valide, `has_driver_profile = true`, `active_role = 'driver'`
-    → `/driver/online`.
-  - Session valide, `active_role = 'passenger'` → `/client/home`.
+  - Session valide, pas de ligne `profiles` associée → `/complete-profile`
+    *(v2 — cas possible si l'utilisateur a quitté l'app entre l'OTP et la
+    complétion du profil)*.
+  - Session + profil, `has_driver_profile = false` → `/client/home`.
+  - Session + profil, `has_driver_profile = true`, `active_role =
+    'driver'` → `/driver/online`.
+  - Session + profil, `active_role = 'passenger'` → `/client/home`.
 - **Tables Supabase** : `profiles` (lecture de `active_role`,
-  `has_driver_profile` via la session).
+  `has_driver_profile`, existence de la ligne).
 - **Règles de visibilité** : jamais accessible manuellement (pas de bouton
   retour vers cet écran).
 - **Responsive mobile** : contenu centré verticalement et horizontalement,
   aucune variation nécessaire.
 - **Critères d'acceptation** :
-  - [ ] Redirection correcte selon les 3 cas de session ci-dessus.
+  - [ ] Redirection correcte selon les 4 cas de session ci-dessus.
   - [ ] Timeout de sécurité (ex. 5s) → si la résolution de session échoue,
     fallback vers `/role-choice`.
 
 ## Écran 1 — Choix de rôle (hybride A+B)
-
-*(Déjà détaillé lors du cadrage — repris ici pour la complétude du document.)*
 
 - **Widgets** : `Container` plein écran (fond navy), `Column` centrale, 2×
   `RoleCard`.
@@ -112,8 +137,7 @@ Conventions transverses :
     `phoneNumber` invalide.
 - **Routes** : `/onboarding`.
 - **Tables Supabase** : aucune écriture directe — `auth.users` géré par
-  Supabase Auth (le profil `profiles` est créé après vérification OTP,
-  écran suivant).
+  Supabase Auth.
 - **Règles de visibilité** : accessible seulement avec `role` défini en
   paramètre (sinon redirect `/role-choice`).
 - **Responsive mobile** : clavier numérique natif à l'ouverture du champ,
@@ -125,6 +149,8 @@ Conventions transverses :
 
 ## Écran 3 — Vérification OTP
 
+*(v2 — ne crée plus le profil directement, cf. Écran 3bis)*
+
 - **Widgets** : `Column`, titre, sous-titre (numéro affiché), `OtpInput`,
   minuteur de renvoi, lien "Renvoyer le code", `PrimaryButton` "Vérifier".
 - **Composants réutilisables** : `OtpInput`, `PrimaryButton`.
@@ -132,17 +158,15 @@ Conventions transverses :
   State, secondes).
 - **Actions** :
   - `Vérifier` : appel Supabase Auth `verifyOtp({ phone, token })`.
-    - Succès + profil `profiles` inexistant → création du profil
-      (`full_name` demandé si absent — cf. note ci-dessous) puis navigate
-      `/client/home` ou `/driver/online` selon `role`.
+    - Succès → navigate `/complete-profile?role=...` (systématique : la
+      création du profil se fait toujours à l'écran suivant, qu'il
+      s'agisse d'une première connexion ou non — l'écran 3bis vérifie
+      lui-même si un profil existe déjà et skip si oui).
     - Échec → message d'erreur inline, champ vidé.
   - `Renvoyer le code` : rappel `signInWithOtp`, actif seulement quand
     `resendCooldown = 0` (cooldown 30s après chaque envoi).
 - **Routes** : `/otp`.
-- **Tables Supabase** : `insert` dans `profiles` (première connexion) avec
-  `active_role = role`, `has_driver_profile = (role == 'driver')` ; si
-  `role = 'driver'`, `insert` correspondant dans `driver_profiles`
-  (`verification_status = 'pending'`).
+- **Tables Supabase** : aucune (déplacé vers Écran 3bis).
 - **Règles de visibilité** : accessible seulement avec `phone` et `role` en
   paramètres (sinon redirect `/onboarding`).
 - **Responsive mobile** : `OtpInput` avec cases suffisamment grandes pour le
@@ -150,18 +174,52 @@ Conventions transverses :
 - **Critères d'acceptation** :
   - [ ] Code à 6 chiffres, soumission auto dès la 6e case remplie.
   - [ ] Cooldown de renvoi visible et respecté (pas de spam SMS).
-  - [ ] Création correcte du profil (et `driver_profiles` si applicable) en
-    une seule vérification réussie, pas de doublon en cas de double-tap.
+  - [ ] Navigation systématique vers `/complete-profile` après succès.
+
+## Écran 3bis — Compléter le profil *(nouveau — v2)*
+
+Corrige le point de la revue : `profiles.full_name` est `not null`, mais
+rien avant v2 ne garantissait sa saisie avant l'`insert`.
+
+- **Widgets** : `Column`, titre "Comment on vous appelle ?", champ texte
+  nom complet, `PrimaryButton` "Continuer".
+- **Composants réutilisables** : `PrimaryButton`.
+- **Variables d'état** : `fullName` (Page State), `role` (paramètre
+  propagé depuis OTP).
+- **Actions** :
+  - Au chargement de l'écran : `select` sur `profiles` pour
+    `id = auth.uid()`. Si une ligne existe déjà → skip immédiat vers
+    `/client/home` ou `/driver/online` selon `active_role` (cas d'un
+    utilisateur déjà inscrit qui repasse par ce flux, ou retour arrière).
+  - `Continuer` : `insert` dans `profiles` (`full_name = fullName`,
+    `phone` = numéro vérifié, `active_role = role`,
+    `has_driver_profile = (role == 'driver')`) ; si `role = 'driver'`,
+    `insert` correspondant dans `driver_profiles`
+    (`verification_status = 'pending'`) **et** `insert` dans
+    `driver_wallets` (`balance = 0`) pour initialiser le solde. Puis
+    navigate `/client/home` ou `/driver/online`.
+- **Routes** : `/complete-profile`.
+- **Tables Supabase** : `select`/`insert` sur `profiles` ; `insert` sur
+  `driver_profiles` et `driver_wallets` si `role = 'driver'`.
+- **Règles de visibilité** : accessible uniquement avec une session Auth
+  valide (sinon redirect `/role-choice`).
+- **Responsive mobile** : champ texte avec clavier standard, bouton
+  `disabled` tant que le nom est vide.
+- **Critères d'acceptation** :
+  - [ ] Impossible de créer un profil avec un nom vide.
+  - [ ] Un utilisateur avec profil déjà existant ne repasse jamais par la
+    création (skip automatique).
+  - [ ] `driver_wallets` initialisé à 0 pour tout nouveau chauffeur.
 
 ## Écran 4 — Profil (commun, sections conditionnelles par rôle)
 
-- **Widgets** : `Column`, avatar + nom + note (`AmountTile`-like), liste de
+- **Widgets** : `Column`, avatar + nom + note, `BottomNavBar`, liste de
   `ListTile` (infos personnelles, moyens de paiement, historique, aide,
   déconnexion). Si `has_driver_profile = true` : section supplémentaire
   "Basculer en mode chauffeur/passager" + bloc véhicule + statut de
   vérification.
-- **Composants réutilisables** : `RatingStars` (lecture seule, affichage
-  note moyenne).
+- **Composants réutilisables** : `RatingStars` (lecture seule),
+  `BottomNavBar`.
 - **Variables d'état** : `profile` (App State, chargé depuis `profiles` +
   `driver_profiles`/`vehicles` si applicable).
 - **Actions** :
@@ -177,8 +235,7 @@ Conventions transverses :
   véhicule ne s'affichent que si `has_driver_profile = true` ; le statut de
   vérification chauffeur (`pending`/`verified`/`rejected`) conditionne
   l'affichage d'un bandeau d'alerte si `pending` ou `rejected`.
-- **Responsive mobile** : liste scrollable, avatar/nom/note fixes en haut
-  (pas de sticky header nécessaire au MVP).
+- **Responsive mobile** : liste scrollable, avatar/nom/note fixes en haut.
 - **Critères d'acceptation** :
   - [ ] Rôle actif affiché correctement et bascule fonctionnelle sans
     recharger toute l'app.
@@ -187,34 +244,37 @@ Conventions transverses :
 ## Écran 5 — Historique des courses (commun)
 
 - **Widgets** : `Column`, filtre par statut (optionnel MVP : liste unique
-  triée par date desc), `ListView` de `RideHistoryTile` (date, trajet,
-  montant), `EmptyState` si vide.
-- **Composants réutilisables** : `EmptyState`, `AmountTile`.
+  triée par date desc), `ListView` de `RideHistoryTile`, `EmptyState` si
+  vide.
+- **Composants réutilisables** : `EmptyState`, `RideHistoryTile`.
 - **Variables d'état** : `rides` (Page State, liste chargée à l'ouverture).
 - **Actions** :
   - Tap sur une ligne → navigate `/ride-detail?ride_id=...` (écran de
-    détail non spécifié ici, hors scope MVP — affichage simple en attendant).
+    détail non spécifié ici, hors scope MVP).
 - **Routes** : `/ride-history`.
 - **Tables Supabase** : `select` sur `rides` où `status = 'completed'`,
   filtré `passenger_id = auth.uid()` (mode passager) ou
   `driver_id = auth.uid()` (mode chauffeur), selon `active_role`. Montant
-  affiché : `total_fare` (passager) vs part nette calculée côté client
-  (chauffeur, 85%).
+  affiché : `total_fare` (passager) vs les lignes `wallet_transactions`
+  `type = 'ride_earning'` liées (chauffeur — montant net déjà figé
+  serveur, plus de calcul 85% côté client).
 - **Règles de visibilité** : le contenu (prix payé vs gain net) dépend de
   `active_role`, pas d'écran séparé.
 - **Responsive mobile** : liste scrollable standard, pagination simple
-  (chargement des 20 dernières courses au MVP, pas d'infinite scroll).
+  (20 dernières courses au MVP, pas d'infinite scroll).
 - **Critères d'acceptation** :
   - [ ] Liste correctement filtrée par rôle actif.
   - [ ] `EmptyState` affiché si aucune course terminée.
-  - [ ] Montant affiché cohérent avec le rôle (payé vs net).
+  - [ ] Montant affiché cohérent avec le rôle (payé vs net, lu depuis les
+    tables serveur, jamais recalculé côté client).
 
 ## Écran 6 — Moyens de paiement / retrait (commun)
 
-- **Widgets** : `Column`, liste de `PaymentMethodTile` (logo provider,
-  numéro masqué, badge "par défaut"), `PrimaryButton` "Ajouter un moyen de
-  paiement", modal d'ajout (provider + numéro).
-- **Composants réutilisables** : `PrimaryButton`.
+- **Widgets** : `Column`, `BottomNavBar`, liste de `PaymentMethodTile`,
+  `PrimaryButton` "Ajouter un moyen de paiement", modal d'ajout (provider +
+  numéro).
+- **Composants réutilisables** : `PrimaryButton`, `PaymentMethodTile`,
+  `BottomNavBar`.
 - **Variables d'état** : `paymentMethods` (Page State).
 - **Actions** :
   - `Ajouter` : ouvre modal, `insert` dans `payment_methods`.
@@ -240,34 +300,38 @@ Conventions transverses :
 
 ## Écran 7 — Accueil
 
+*(v2 — favoris branchés sur `saved_places`)*
+
 - **Widgets** : `MapView` (position actuelle), barre "Où on va
   aujourd'hui ?", liste de destinations favorites (`ListTile` icône +
-  libellé + sous-adresse), `BottomNavBar` (Accueil/Trajets/Paiements/Profil).
+  libellé + sous-adresse), `BottomNavBar`.
 - **Composants réutilisables** : `MapView`, `EmptyState` (si aucune
-  destination favorite).
+  destination favorite), `BottomNavBar`.
 - **Variables d'état** : `currentPosition` (App State, géoloc device),
-  `favoriteDestinations` (Page State).
+  `favoriteDestinations` (Page State, chargé depuis `saved_places`).
 - **Actions** :
   - Tap barre destination → navigate `/client/estimate` (champ destination
     en focus).
   - Tap destination favorite → navigate `/client/estimate?dropoff=...`
     (pré-rempli).
 - **Routes** : `/client/home`.
-- **Tables Supabase** : pas de table dédiée aux favoris au MVP (hors
-  scope — si nécessaire, ajouter une table `saved_places` dans une
-  itération future) ; lecture de `profiles.full_name` pour la salutation.
+- **Tables Supabase** : `select` sur `saved_places` (`profile_id =
+  auth.uid()`) ; lecture de `profiles.full_name` pour la salutation.
 - **Règles de visibilité** : nécessite permission de géolocalisation ;
-  si refusée, `MapView` affiche un état par défaut (position non
-  centrée) avec message d'invite à activer la géoloc.
+  si refusée, `MapView` affiche un état par défaut avec message d'invite à
+  activer la géoloc.
 - **Responsive mobile** : carte occupe ~55% de l'écran, panneau destination
   en bottom sheet fixe.
 - **Critères d'acceptation** :
   - [ ] Salutation personnalisée (prénom) affichée correctement.
+  - [ ] Favoris chargés depuis `saved_places`, `EmptyState` si aucun.
   - [ ] Navigation vers Estimation avec destination pré-remplie quand
     applicable.
   - [ ] Comportement correct si permission géoloc refusée.
 
 ## Écran 8 — Estimation
+
+*(v2 — enregistre `payment_method_id` sur la course, prix calculé serveur)*
 
 - **Widgets** : `MapView` (tracé pickup→dropoff), en-tête trajet
   (adresses + bouton retour), `ListView` de `RideOptionCard` (Go, Partage,
@@ -276,15 +340,18 @@ Conventions transverses :
 - **Composants réutilisables** : `MapView`, `RideOptionCard`,
   `PrimaryButton`.
 - **Variables d'état** : `selectedCategory` (Page State), `fareEstimates`
-  (Page State, calculées via Edge Function `estimate-fare` à l'ouverture),
-  `selectedPaymentMethod` (Page State, initialisé au moyen par défaut).
+  (Page State, calculées via Edge Function `estimate-fare` à l'ouverture —
+  calcul serveur, jamais recalculé côté client), `selectedPaymentMethodId`
+  (Page State, initialisé au moyen par défaut).
 - **Actions** :
   - Tap `RideOptionCard` : `selectedCategory = category`.
   - `Changer` (paiement) → navigate `/payment-methods` (retour ensuite).
-  - `Commander` : `insert` dans `rides` (`status = 'searching'`) → navigate
-    `/client/active-ride?ride_id=...`.
+  - `Commander` : `insert` dans `rides` (`status = 'searching'`,
+    `payment_method_id = selectedPaymentMethodId`, prix/distance figés
+    depuis `fareEstimates`) → navigate `/client/active-ride?ride_id=...`.
 - **Routes** : `/client/estimate`.
-- **Tables Supabase** : `insert` sur `rides` ; lecture de
+- **Tables Supabase** : appel Edge Function `estimate-fare` (lecture) ;
+  `insert` sur `rides` (avec `payment_method_id`) ; lecture de
   `payment_methods` pour le sélecteur.
 - **Règles de visibilité** : bouton `Commander` `disabled` si aucune
   catégorie sélectionnée ou aucun moyen de paiement enregistré (dans ce
@@ -293,12 +360,15 @@ Conventions transverses :
   catégories à l'avenir ; bouton `Commander` toujours visible en bas
   (sticky).
 - **Critères d'acceptation** :
-  - [ ] Prix affiché cohérent avec la catégorie sélectionnée.
+  - [ ] Prix affiché = celui calculé par `estimate-fare` (jamais recalculé
+    localement).
   - [ ] Impossible de commander sans moyen de paiement valide.
-  - [ ] La ligne `rides` créée contient bien pickup/dropoff/catégorie/prix
-    corrects.
+  - [ ] La ligne `rides` créée contient `payment_method_id` correctement
+    renseigné.
 
 ## Écran 9 — Course active
+
+*(v2 — bandeau de statut aligné sur `driver_en_route`)*
 
 - **Widgets** : bandeau de statut ("Chauffeur en approche · X min"),
   `MapView` (position chauffeur temps réel), `DriverInfoCard`, détail
@@ -310,28 +380,31 @@ Conventions transverses :
   Realtime sur `driver_locations`).
 - **Actions** :
   - `Appeler`/`Message` (sur `DriverInfoCard`) : lien téléphonique natif /
-    écran de chat (hors scope détail ici).
+    écran de chat (hors scope détail).
   - `Partager le trajet` : génère un lien de suivi (hors scope backend
-    détaillé ici).
-  - Annulation (bouton secondaire, si `status in ('searching','offered')`) :
-    update `rides.status = 'cancelled'`.
+    détaillé).
+  - Annulation (bouton secondaire, si `status = 'searching'`) : update
+    `rides.status = 'cancelled'`.
 - **Routes** : `/client/active-ride?ride_id=...`.
 - **Tables Supabase** : `select` + souscription Realtime sur `rides` et
   `driver_locations` (via la vue `active_driver_public` pour les infos
-  chauffeur, cf. schéma).
+  chauffeur).
 - **Règles de visibilité** : le bandeau de statut et les actions
   disponibles changent selon `rides.status`
-  (`accepted`→"en approche", `arrived`→"chauffeur arrivé",
-  `in_progress`→"course en cours" avec ETA destination).
+  (`driver_en_route`→"en approche", `arrived`→"chauffeur arrivé",
+  `in_progress`→"course en cours" avec ETA destination). L'option
+  d'annulation disparaît dès que `status != 'searching'` (plus possible
+  une fois un chauffeur assigné, cohérent avec le fait que
+  l'assignation ne se fait qu'à l'acceptation d'une offre).
 - **Responsive mobile** : carte prend le haut de l'écran, `DriverInfoCard`
-  en bottom sheet fixe, doit rester lisible même avec notifications
-  système affichées.
+  en bottom sheet fixe.
 - **Critères d'acceptation** :
   - [ ] Position chauffeur mise à jour en temps réel sans rafraîchissement
-    manuel.
+    manuel, y compris pendant `in_progress` (corrige la coupure de suivi
+    identifiée en revue).
   - [ ] Transition automatique vers l'écran Fin de course quand
     `status = 'completed'`.
-  - [ ] Annulation possible uniquement aux statuts autorisés.
+  - [ ] Annulation possible uniquement au statut `searching`.
 
 ## Écran 10 — Fin de course
 
@@ -344,9 +417,9 @@ Conventions transverses :
   State), `selectedTags` (Page State), `comment` (Page State, optionnel).
 - **Actions** :
   - `Envoyer & terminer` : `insert` dans `ratings`, puis navigate
-    `/client/home`.
-  - `Reçu PDF` : génération/téléchargement (hors scope détail — Edge
-    Function future).
+    `/client/home`. Bouton `disabled` immédiatement après premier envoi
+    (empêche double-soumission en plus de la contrainte `unique` en base).
+  - `Reçu PDF` : génération/téléchargement (hors scope détail).
 - **Routes** : `/client/ride-end?ride_id=...`.
 - **Tables Supabase** : `select` sur `rides` + `payments` (statut paiement) ;
   `insert` sur `ratings`.
@@ -354,10 +427,10 @@ Conventions transverses :
   'completed'` et que l'utilisateur en est le passager (sinon redirect
   `/client/home`).
 - **Responsive mobile** : contenu scrollable si le détail prix + notation
-  dépasse la hauteur d'écran (petits appareils).
+  dépasse la hauteur d'écran.
 - **Critères d'acceptation** :
   - [ ] Impossible de noter deux fois la même course (contrainte `unique`
-    déjà en base, mais le bouton doit aussi se désactiver après envoi).
+    en base + désactivation du bouton après envoi).
   - [ ] Montant total affiché = somme des lignes de détail.
   - [ ] Retour à l'Accueil après soumission.
 
@@ -368,23 +441,22 @@ Conventions transverses :
 ## Écran 11 — En ligne
 
 - **Widgets** : en-tête (avatar, "Bonjour, {prénom}", badge statut),
-  `MapView` de fond avec anneau de pulsation (indicateur disponibilité),
-  bloc gains du jour (`AmountTile` gros format + stats courses/heures en
-  ligne/note), `Switch` "Disponible pour course", bloc bonus de série
-  (barre de progression).
-- **Composants réutilisables** : `MapView`, `AmountTile`.
+  `MapView` de fond avec anneau de pulsation, bloc gains du jour
+  (`AmountTile` gros format + stats), `Switch` "Disponible pour course",
+  bloc bonus de série, `BottomNavBar`.
+- **Composants réutilisables** : `MapView`, `AmountTile`, `BottomNavBar`.
 - **Variables d'état** : `isAvailable` (Page State, lié à
   `driver_profiles.is_available`), `todayStats` (Page State, calculées via
-  requête agrégée sur `wallet_transactions`/`rides` du jour).
+  requête agrégée sur `wallet_transactions` du jour).
 - **Actions** :
   - `Switch` disponibilité : update `driver_profiles.is_available` ;
     si `true`, démarre l'upsert périodique de position dans
-    `driver_locations` (toutes les ~5s tant que l'écran est actif ou
-    l'app en foreground).
+    `driver_locations` (toutes les ~5s, **premier plan uniquement** — cf.
+    risque ouvert "arrière-plan" dans le schéma Supabase).
 - **Routes** : `/driver/online`.
 - **Tables Supabase** : `select`/`update` sur `driver_profiles` ;
-  `insert`/`update` sur `driver_locations` ; agrégats en lecture sur
-  `rides`/`wallet_transactions` pour les stats du jour.
+  `insert`/`update` sur `driver_locations` ; `select` sur `driver_wallets`
+  (solde) et `wallet_transactions` (agrégats du jour).
 - **Règles de visibilité** : si `driver_profiles.verification_status !=
   'verified'`, le `Switch` est `disabled` avec message "Vérification en
   cours".
@@ -393,65 +465,81 @@ Conventions transverses :
 - **Critères d'acceptation** :
   - [ ] Bascule disponible ↔ indisponible reflétée en base immédiatement.
   - [ ] Chauffeur non vérifié ne peut pas passer disponible.
-  - [ ] Réception d'une demande entrante uniquement si `isAvailable = true`.
+  - [ ] Réception d'une offre (`ride_offers`) uniquement si
+    `isAvailable = true`.
 
 ## Écran 12 — Demande entrante
 
+*(v2 — branché sur `ride_offers`, plus sur un événement Realtime "brut")*
+
 - **Widgets** : bandeau "Nouvelle demande", `MapView` avec marqueur
   distance, bloc gain ("Tu gagnes {montant}") + `CircularProgressIndicator`
-  compte à rebours 9s, stats course (distance, durée, note client, temps
-  pickup), détail pickup/destination, `PrimaryButton` "Accepter · {montant}"
-  + bouton secondaire "Refuser".
+  compte à rebours (synchronisé sur `ride_offers.expires_at`), stats course
+  (distance, durée, note client, temps pickup), détail pickup/destination,
+  `PrimaryButton` "Accepter · {montant}" + bouton secondaire "Refuser".
 - **Composants réutilisables** : `MapView`, `PrimaryButton`.
-- **Variables d'état** : `incomingRide` (Page State, reçu via canal
-  Realtime `driver:{driver_id}`), `countdown` (Page State, timer local 9s).
+- **Variables d'état** : `incomingOffer` (Page State, reçu via canal
+  Realtime privé `driver:{driver_id}` — cf. schéma §Realtime — puis
+  enrichi par lecture de la ligne `ride_offers` + `rides` correspondante),
+  `countdown` (Page State, calculé en continu à partir de
+  `incomingOffer.expires_at - now()`, pas un timer fixe indépendant du
+  serveur).
 - **Actions** :
-  - `Accepter` : appel Edge Function `accept-ride` (update atomique, cf.
-    schéma). Succès → navigate `/driver/navigation?ride_id=...`. Échec
-    (déjà pris) → message + retour `/driver/online`.
-  - `Refuser` / expiration du `countdown` : ferme l'écran, retour
-    `/driver/online`, aucune écriture en base (la course reste
-    `searching` pour un autre chauffeur).
+  - `Accepter` : appel Edge Function `accept-ride`
+    (`ride_id`, `driver_id`). Succès → navigate
+    `/driver/navigation?ride_id=...`. Échec (offre expirée ou course déjà
+    prise) → message explicite + retour `/driver/online`.
+  - `Refuser` : update direct `ride_offers.status = 'refused'` (autorisé
+    par RLS, transition simple sans risque de concurrence) → retour
+    `/driver/online`.
+  - Expiration du `countdown` à 0 : comportement identique à `Refuser`
+    côté UI (l'expiration effective en base est gérée par le job
+    `pg_cron`, cf. schéma).
 - **Routes** : `/driver/incoming-request`.
-- **Tables Supabase** : `select` (lecture initiale via l'événement
-  Realtime, pas de requête directe) ; `update` conditionnel via Edge
-  Function à l'acceptation.
+- **Tables Supabase** : `select` sur `ride_offers` + `rides` (lecture) ;
+  `update` sur `ride_offers` (refus) ; `accept-ride` (Edge Function) pour
+  l'acceptation.
 - **Règles de visibilité** : écran présenté uniquement en overlay/push
-  quand un événement Realtime est reçu et `isAvailable = true` ; disparaît
-  automatiquement si la course est prise par un autre chauffeur entre
-  temps (écoute du statut).
+  quand un événement Realtime `driver:{driver_id}` est reçu et
+  `isAvailable = true` ; disparaît automatiquement si `ride_offers.status`
+  passe à `expired` (course prise par un autre chauffeur ou expirée)
+  entre-temps.
 - **Responsive mobile** : compte à rebours et bouton `Accepter` toujours
-  visibles sans scroll (priorité absolue à l'action rapide).
+  visibles sans scroll.
 - **Critères d'acceptation** :
-  - [ ] Compte à rebours précis à la seconde, auto-refus à 0.
-  - [ ] Gestion correcte du cas "course déjà prise par un autre chauffeur".
-  - [ ] Montant affiché = 85% du `total_fare` de la course.
+  - [ ] Compte à rebours synchronisé sur `expires_at` serveur (pas un
+    simple timer local désynchronisable).
+  - [ ] Gestion correcte du cas "course déjà prise par un autre chauffeur"
+    (message clair, retour automatique).
+  - [ ] Montant affiché = part nette de `total_fare` déjà calculée côté
+    serveur (barème non détaillé ici).
 
 ## Écran 13 — Navigation
 
+*(v2 — statut de départ `driver_en_route`, réellement atteint désormais)*
+
 - **Widgets** : bandeau instruction de guidage ("200m, Tout droit sur
   Bd Latrille"), ETA résumé, `MapView` avec itinéraire vers le pickup,
-  `DriverInfoCard`-like inversé (infos passager : nom, note, tag
-  "cliente régulière"), bouton "Itinéraire" (ouvre app de nav externe si
-  souhaité), `PrimaryButton` "Je suis arrivé · démarrer course".
+  infos passager (nom, note, tag "cliente régulière"), bouton
+  "Itinéraire", `PrimaryButton` "Je suis arrivé · démarrer course".
 - **Composants réutilisables** : `MapView`.
 - **Variables d'état** : `ride` (Page State, souscription Realtime sur
-  `rides`).
+  `rides`, statut initial `driver_en_route`).
 - **Actions** :
-  - `Je suis arrivé · démarrer course` : update `rides.status = 'arrived'`
-    puis, une fois le passager à bord confirmé (même bouton réutilisé,
-    libellé change), `status = 'in_progress'`, `started_at = now()` →
-    navigate `/driver/ride-in-progress?ride_id=...`.
-    - *Note d'implémentation* : deux sous-états (`arrived` puis
-      `in_progress`) sur le même écran, le bouton change de libellé selon
-      `ride.status`.
+  - `Je suis arrivé` (visible si `status = 'driver_en_route'`) : update
+    `rides.status = 'arrived'`, le bouton se relabellise "Démarrer course".
+  - `Démarrer course` (visible si `status = 'arrived'`) : update
+    `rides.status = 'in_progress'`, `started_at = now()` → navigate
+    `/driver/ride-in-progress?ride_id=...`.
 - **Routes** : `/driver/navigation?ride_id=...`.
 - **Tables Supabase** : `select`/`update` sur `rides`.
 - **Règles de visibilité** : accessible uniquement si `driver_id =
-  auth.uid()` et `status in ('accepted','driver_en_route','arrived')`.
+  auth.uid()` et `status in ('driver_en_route','arrived')`.
 - **Responsive mobile** : bandeau d'instruction fixe en haut, bouton
-  d'action principal fixe en bas, carte occupe l'espace restant.
+  d'action principal fixe en bas.
 - **Critères d'acceptation** :
+  - [ ] Écran atteint directement avec `status = 'driver_en_route'` après
+    acceptation (plus de statut intermédiaire manquant).
   - [ ] Bouton passe correctement de "Je suis arrivé" à "Démarrer course".
   - [ ] `started_at` renseigné au démarrage effectif de la course.
   - [ ] Écran inaccessible si la course n'appartient pas au chauffeur
@@ -461,66 +549,77 @@ Conventions transverses :
 
 - **Widgets** : bandeau "Course en cours · {passager} à bord", instruction
   de guidage, badge gain ("Ton gain {montant}"), `MapView` avec tracé vers
-  destination, barre de progression trajet (km parcourus / total), stats
-  (temps restant, vitesse, trafic, heure d'arrivée), bouton "Urgence"
-  (secondaire), `PrimaryButton` "Terminer la course".
+  destination, barre de progression trajet, stats (temps restant, vitesse,
+  trafic, heure d'arrivée), bouton "Urgence" (secondaire), `PrimaryButton`
+  "Terminer la course".
 - **Composants réutilisables** : `MapView`.
 - **Variables d'état** : `ride` (Page State, souscription Realtime),
   `progressRatio` (calculé côté client à partir de la position vs
-  distance totale).
+  distance totale — affichage seulement, ne modifie aucune donnée
+  financière).
 - **Actions** :
   - `Terminer la course` : update `rides.status = 'completed'`,
-    `completed_at = now()` ; déclenche (via trigger DB ou Edge Function)
-    la création de la ligne `payments` et de la ligne
-    `wallet_transactions` (`type = 'ride_earning'`, montant = 85% du
-    `total_fare`) → navigate `/driver/payout-recap?ride_id=...`.
-  - `Urgence` : ouverture d'un flux d'assistance (hors scope détail ici).
+    `completed_at = now()` ; déclenche côté serveur (trigger/Edge
+    Function `service_role`, cf. schéma §Paiements & retraits) la création
+    de la ligne `payments`, l'incrément de `driver_wallets.balance` et la
+    ligne `wallet_transactions` (`type = 'ride_earning'`) → navigate
+    `/driver/payout-recap?ride_id=...`.
+  - `Urgence` : ouverture d'un flux d'assistance (hors scope détail).
 - **Routes** : `/driver/ride-in-progress?ride_id=...`.
-- **Tables Supabase** : `update` sur `rides` ; `insert` (via trigger/Edge
-  Function) sur `payments` et `wallet_transactions`.
+- **Tables Supabase** : `update` sur `rides` (le reste — `payments`,
+  `driver_wallets`, `wallet_transactions` — est écrit exclusivement côté
+  serveur, jamais directement par le client).
 - **Règles de visibilité** : accessible uniquement si `driver_id =
   auth.uid()` et `status = 'in_progress'`.
-- **Responsive mobile** : badge gain et bouton principal toujours visibles,
-  pas de contenu critique caché par la barre système.
+- **Responsive mobile** : badge gain et bouton principal toujours visibles.
 - **Critères d'acceptation** :
-  - [ ] `Terminer la course` crée bien une ligne `wallet_transactions` avec
-    le bon montant (85%).
+  - [ ] `Terminer la course` déclenche bien la création serveur de la
+    ligne `wallet_transactions` et l'incrément de `driver_wallets.balance`
+    (vérifiable en relisant le solde après coup, pas de calcul client).
   - [ ] Impossible de terminer une course qui n'est pas `in_progress`.
   - [ ] Navigation automatique vers Récap & retrait après complétion.
 
 ## Écran 15 — Récap & retrait
 
-- **Widgets** : bandeau "Course terminée", titre félicitations (note
-  reçue), bloc solde disponible (`AmountTile` gros format + stats jour),
-  détail dernière course (trajet, gain net), section "Retrait mobile
-  money" (liste `PaymentMethodTile`, `PrimaryButton` "Retirer {montant}
-  sur {provider}"), bouton secondaire "Reprendre en ligne".
-- **Composants réutilisables** : `AmountTile`, `PaymentMethodTile`
-  (référence croisée avec l'écran Moyens de paiement).
-- **Variables d'état** : `walletBalance` (Page State, somme des
-  `wallet_transactions` non retirées), `lastRide` (Page State).
+*(v2 — solde lu depuis `driver_wallets`, retrait avec idempotence)*
+
+- **Widgets** : bandeau "Course terminée", titre félicitations, bloc solde
+  disponible (`AmountTile` gros format), détail dernière course, section
+  "Retrait mobile money" (liste `PaymentMethodTile`, `PrimaryButton`
+  "Retirer {montant} sur {provider}"), bouton secondaire "Reprendre en
+  ligne".
+- **Composants réutilisables** : `AmountTile`, `PaymentMethodTile`.
+- **Variables d'état** : `walletBalance` (Page State, lu directement depuis
+  `driver_wallets.balance` — **jamais recalculé côté client**), `lastRide`
+  (Page State), `payoutIdempotencyKey` (Page State, UUID généré une fois à
+  l'ouverture de l'écran, réutilisé tel quel si l'appel de retrait est
+  relancé après une erreur réseau).
 - **Actions** :
   - `Retirer {montant} sur {provider}` : appel Edge Function `payout`
-    (déclenche le virement mobile money côté fournisseur — intégration
-    hors scope détail ici), puis `insert` dans `wallet_transactions`
-    (`type = 'payout'`, montant négatif) une fois confirmé.
+    (`amount`, `provider`, `payoutIdempotencyKey`). Bouton passe en
+    `loading` ; en cas de retry (perte réseau), la même clé est renvoyée
+    (pas de nouvelle génération), garantissant qu'un seul retrait est
+    effectivement créé côté serveur même en cas de double-tap.
   - `Reprendre en ligne` : navigate `/driver/online`.
 - **Routes** : `/driver/payout-recap?ride_id=...`.
-- **Tables Supabase** : `select` agrégé sur `wallet_transactions` (solde) ;
-  `insert` sur `wallet_transactions` (`type = 'payout'`).
+- **Tables Supabase** : `select` sur `driver_wallets` (solde) ; appel
+  Edge Function `payout` (qui écrit `payouts`/`wallet_transactions`/
+  `driver_wallets` côté serveur — le client n'écrit directement aucune de
+  ces tables).
 - **Règles de visibilité** : bouton de retrait `disabled` si
   `walletBalance <= 0` ou si aucun moyen de paiement enregistré.
 - **Responsive mobile** : bouton de retrait principal toujours visible en
   bas, contenu scrollable au-dessus.
 - **Critères d'acceptation** :
-  - [ ] Solde affiché = somme exacte des `wallet_transactions` du chauffeur
-    (`ride_earning` + `bonus` − `payout`).
+  - [ ] Solde affiché = valeur exacte de `driver_wallets.balance` (source
+    serveur), rafraîchi après un retrait réussi.
   - [ ] Retrait impossible si solde nul.
-  - [ ] Après retrait réussi, le solde affiché se met à jour immédiatement.
+  - [ ] Un double-tap sur "Retirer" ne crée qu'un seul `payouts` (vérifié
+    via la contrainte `unique` sur `idempotency_key`).
 
 ---
 
-## Hors scope de ce document
+## Hors scope de ce document (nécessite un spec dédié avant implémentation)
 
 - Écran de détail d'une course individuelle depuis l'historique (référencé
   mais non spécifié).
@@ -529,5 +628,25 @@ Conventions transverses :
 - Flux "Urgence"/assistance.
 - Génération effective du reçu PDF.
 - Intégration technique réelle des paiements mobile money (Orange
-  Money/Wave) — ce document suppose une Edge Function `payout` déjà
-  fonctionnelle, dont la conception fait l'objet d'un spec dédié.
+  Money/Wave) — le contrat interne est fixé (schéma §Paiements & retraits),
+  pas l'appel HTTP au fournisseur.
+- Suivi de position en arrière-plan (app fermée/minimisée) — risque ouvert,
+  cf. schéma Supabase.
+
+## Changelog (v1 → v2, suite revue technique du 2026-08-24)
+
+Voir le changelog détaillé dans `2026-08-24-taga-supabase-schema.md`
+(section correspondante) pour la correspondance complète entre chaque
+point soulevé et sa correction. Résumé côté écrans :
+
+| Écran | Changement |
+|---|---|
+| OTP (3) | Ne crée plus le profil directement |
+| **Nouveau** 3bis | "Compléter le profil" — garantit `full_name` avant création |
+| Estimation (8) | Enregistre `payment_method_id` sur la course, prix lu depuis `estimate-fare` (serveur) |
+| Course active (9) | Bandeau aligné sur `driver_en_route`, suivi position étendu à `in_progress` |
+| Demande entrante (12) | Branché sur `ride_offers`, countdown synchronisé serveur, gestion "déjà prise" |
+| Navigation (13) | Démarre bien à `driver_en_route` (plus de statut manquant) |
+| Course en cours (14) | Écritures financières déplacées côté serveur exclusivement |
+| Récap & retrait (15) | Solde lu depuis `driver_wallets`, retrait avec clé d'idempotence |
+| Transverse | Ajout composants `PaymentMethodTile`, `RideHistoryTile`, `BottomNavBar` ; Accueil branché sur `saved_places` |
