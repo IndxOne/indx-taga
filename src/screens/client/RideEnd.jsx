@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
 import AmountTile from '../../components/AmountTile'
 import RatingStars from '../../components/RatingStars'
 import PrimaryButton from '../../components/PrimaryButton'
+
+const TAGS = ['Conduite 🚗', 'À l\'heure 🕒', 'Voiture propre ✨']
 
 export default function RideEnd() {
   const navigate = useNavigate()
@@ -11,12 +14,18 @@ export default function RideEnd() {
   const rating = useAppStore((state) => state.rating)
   const setRating = useAppStore((state) => state.setRating)
   const setRideStatus = useAppStore((state) => state.setRideStatus)
+  const [selectedTags, setSelectedTags] = useState([])
 
   const format = (amount) => new Intl.NumberFormat('fr-FR').format(amount)
+
+  const toggleTag = (tag) => {
+    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
+  }
 
   const handleFinish = () => {
     setRideStatus('completed')
     setRating(0)
+    setSelectedTags([])
     navigate('/client/home')
   }
 
@@ -37,6 +46,20 @@ export default function RideEnd() {
       <div>
         <p className="text-sm text-gray-500 mb-2">Comment s'est passée la course avec {driver.name} ?</p>
         <RatingStars value={rating} onChange={setRating} />
+        <div className="flex flex-wrap gap-2 mt-3">
+          {TAGS.map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => toggleTag(tag)}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+                selectedTags.includes(tag) ? 'bg-taga-green text-white border-taga-green' : 'bg-white text-gray-500 border-gray-200'
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="mt-auto flex flex-col gap-3">
