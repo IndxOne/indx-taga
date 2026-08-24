@@ -27,6 +27,25 @@ export const RIDE_OPTIONS = [
   { id: 'confort', name: 'TAGA Confort', badge: null, description: 'Premium · clim. Camry, Accord...', price: 4200 },
 ]
 
+export const MOCK_PROFILE = {
+  fullName: 'Akissi Koffi',
+  phone: '+225 07 07 12 34 56',
+  ratingAvg: 4.9,
+  hasDriverProfile: true,
+  driverVerificationStatus: 'verified', // pending | verified | rejected
+}
+
+export const MOCK_RIDE_HISTORY = [
+  { id: 'r1', date: '22 août', pickupLabel: 'Cocody, Riviera 3', dropoffLabel: 'Plateau, Imm. CAISTAB', amount: 3200, driverAmount: 2720 },
+  { id: 'r2', date: '20 août', pickupLabel: 'Marcory, Zone 4', dropoffLabel: 'Cocody, Riviera 3', amount: 2400, driverAmount: 2040 },
+  { id: 'r3', date: '17 août', pickupLabel: 'Plateau, Tour CAISTAB', dropoffLabel: 'Port-Bouët, Aéroport FHB', amount: 6800, driverAmount: 5780 },
+]
+
+export const MOCK_PAYMENT_METHODS = [
+  { id: 'pm1', provider: 'orange_money', label: 'Orange Money', maskedNumber: '07 •••• 1284', isDefault: true },
+  { id: 'pm2', provider: 'wave', label: 'Wave', maskedNumber: '01 •••• 9921', isDefault: false },
+]
+
 export const useAppStore = create((set) => ({
   role: null, // 'passenger' | 'driver'
   setRole: (role) => set({ role }),
@@ -53,4 +72,19 @@ export const useAppStore = create((set) => ({
 
   rating: 0,
   setRating: (rating) => set({ rating }),
+
+  profile: MOCK_PROFILE,
+  rideHistory: MOCK_RIDE_HISTORY,
+
+  paymentMethods: MOCK_PAYMENT_METHODS,
+  addPaymentMethod: (method) =>
+    set((state) => ({ paymentMethods: [...state.paymentMethods, method] })),
+  removePaymentMethod: (id) =>
+    set((state) => ({ paymentMethods: state.paymentMethods.filter((m) => m.id !== id) })),
+  setDefaultPaymentMethod: (id) =>
+    set((state) => ({
+      paymentMethods: state.paymentMethods.map((m) => ({ ...m, isDefault: m.id === id })),
+    })),
+
+  logout: () => set({ role: null, rideStatus: 'idle', driverAvailable: false }),
 }))
