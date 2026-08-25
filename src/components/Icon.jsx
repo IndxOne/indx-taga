@@ -16,6 +16,9 @@ const PATHS = {
   arrowUp: <><path d="M12 19V5M6 11l6-6 6 6" /></>,
   lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
   pin: <><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" /><circle cx="12" cy="10" r="2" /></>,
+  alert: <><path d="M12 9v4M12 17h.01" /><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" /></>,
+  refresh: <><path d="M21 12a9 9 0 0 1-15.5 6.3M3 12a9 9 0 0 1 15.5-6.3" /><path d="M21 3v6h-6M3 21v-6h6" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></>,
 }
 
 export default function Icon({ name, size = 20, strokeWidth = 1.8, className = '', label }) {
