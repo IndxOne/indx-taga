@@ -2,6 +2,8 @@ import { create } from 'zustand'
 
 export const DEV_TEST_PASSENGER_PHONE = '+330775679067'
 
+const randomBetween = (min, max) => min + Math.random() * (max - min)
+
 export const MOCK_DRIVER = {
   name: 'Mamadou Ndour',
   rating: 4.93,
@@ -67,6 +69,9 @@ export const useAppStore = create((set) => ({
   }),
   clearOtpChallenge: () => set({ otpChallengeId: '', otpMaskedPhone: '', otpExpiresAt: 0 }),
 
+  sessionExpiresAt: 0,
+  startSession: () => set({ sessionExpiresAt: Date.now() + randomBetween(90_000, 240_000) }),
+
   ride: MOCK_RIDE,
   driver: MOCK_DRIVER,
 
@@ -104,5 +109,14 @@ export const useAppStore = create((set) => ({
       paymentMethods: state.paymentMethods.map((m) => ({ ...m, isDefault: m.id === id })),
     })),
 
-  logout: () => set({ role: null, phone: '', otpChallengeId: '', otpMaskedPhone: '', otpExpiresAt: 0, rideStatus: 'idle', driverAvailable: false }),
+  logout: () => set({
+    role: null,
+    phone: '',
+    otpChallengeId: '',
+    otpMaskedPhone: '',
+    otpExpiresAt: 0,
+    sessionExpiresAt: 0,
+    rideStatus: 'idle',
+    driverAvailable: false,
+  }),
 }))

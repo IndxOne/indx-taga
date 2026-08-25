@@ -14,6 +14,7 @@ export default function Otp() {
   const otpMaskedPhone = useAppStore((state) => state.otpMaskedPhone)
   const otpExpiresAt = useAppStore((state) => state.otpExpiresAt)
   const setOtpChallenge = useAppStore((state) => state.setOtpChallenge)
+  const startSession = useAppStore((state) => state.startSession)
   const [code, setCode] = useState('')
   const [cooldown, setCooldown] = useState(30)
   const [secondsLeft, setSecondsLeft] = useState(() => Math.max(0, Math.ceil((otpExpiresAt - Date.now()) / 1000)))
@@ -50,6 +51,7 @@ export default function Otp() {
     setError('')
     try {
       await verifyOtp({ challengeId: otpChallengeId, code })
+      startSession()
       navigate(role === 'driver' ? ROUTES.driverOnline : ROUTES.clientHome)
     } catch (verifyError) {
       setError(verifyError.message)
