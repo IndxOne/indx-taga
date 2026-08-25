@@ -47,7 +47,7 @@ export default function DriverRideMap({ phase = 'request' }) {
 
   return (
     <>
-      <svg className="pointer-events-none absolute inset-0 z-[1] h-full w-full" viewBox="0 0 430 320" preserveAspectRatio="none" aria-hidden="true">
+      <svg className="pointer-events-none absolute inset-0 z-[1] h-full w-full" viewBox="0 0 430 320" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <path d="M95 230 C140 204 184 178 224 141 S306 86 335 64" fill="none" stroke="#ffffff" strokeWidth="12" strokeLinecap="round" />
         <path d="M95 230 C140 204 184 178 224 141 S306 86 335 64" fill="none" stroke="#00a878" strokeWidth="4" strokeLinecap="round" strokeDasharray="10 7" />
       </svg>

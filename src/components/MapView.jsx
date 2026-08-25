@@ -9,7 +9,7 @@ export default function MapView({ children, className = '', 'aria-label': ariaLa
         backgroundSize: '52px 52px',
       }}
     >
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 430 320" preserveAspectRatio="none" aria-hidden="true">
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 430 320" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <path d="M-20 270 C80 238 116 270 190 218 S310 90 450 118" fill="none" stroke="#cdd9dd" strokeWidth="44" />
         <path d="M-20 270 C80 238 116 270 190 218 S310 90 450 118" fill="none" stroke="#ffffff" strokeWidth="30" />
         <path d="M-20 270 C80 238 116 270 190 218 S310 90 450 118" fill="none" stroke="#f7c948" strokeWidth="1.5" strokeDasharray="8 7" />

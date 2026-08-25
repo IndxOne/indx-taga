@@ -22,7 +22,7 @@ export default function Home() {
             <p className="text-xs font-semibold text-taga-navy">Cocody, Riviera 3</p>
           </div>
         </div>
-        <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 430 320" preserveAspectRatio="none" aria-hidden="true">
+        <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 430 320" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
           <path d="M176 320 L176 204 L300 204 L300 92" fill="none" stroke="#ffffff" strokeWidth="11" strokeLinecap="round" />
           <path d="M176 320 L176 204 L300 204 L300 92" fill="none" stroke="#0005d6" strokeWidth="4" strokeLinecap="round" />
           <circle cx="176" cy="320" r="7" fill="#0005d6" stroke="#ffffff" strokeWidth="4" />

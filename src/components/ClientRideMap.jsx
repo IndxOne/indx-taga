@@ -37,7 +37,7 @@ export default function ClientRideMap({ phase = 'estimate' }) {
 
   return (
     <>
-      <svg className="pointer-events-none absolute inset-0 z-[1] h-full w-full" viewBox="0 0 430 320" preserveAspectRatio="none" aria-hidden="true">
+      <svg className="pointer-events-none absolute inset-0 z-[1] h-full w-full" viewBox="0 0 430 320" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <path d={end} fill="none" stroke="#ffffff" strokeWidth="12" strokeLinecap="round" />
         <path d={end} fill="none" stroke="#0005d6" strokeWidth="4" strokeLinecap="round" />
       </svg>

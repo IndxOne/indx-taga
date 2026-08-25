@@ -31,12 +31,6 @@ export default function Online() {
       </div>
 
       <MapView className="absolute inset-0 z-0 h-full min-h-[700px] w-full" aria-label="Carte de disponibilité chauffeur">
-        <div className="absolute inset-0 opacity-70">
-          <div className="absolute left-[12%] top-[28%] h-2/3 w-10 bg-white/80" />
-          <div className="absolute right-[16%] top-[18%] h-1/2 w-16 bg-white/80" />
-          <div className="absolute left-0 right-0 top-[42%] h-8 bg-white/80" />
-          <div className="absolute bottom-[28%] left-[28%] h-24 w-28 bg-gray-200/80" />
-        </div>
         <div className="absolute left-1/2 top-[42%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
           <span className="absolute h-44 w-44 animate-pulse rounded-full bg-taga-green/20" />
           <span className="absolute h-28 w-28 rounded-full bg-taga-green/30" />
@@ -92,7 +86,7 @@ export default function Online() {
                   active ? 'font-semibold text-taga-blue' : 'text-gray-400'
                 }`}
               >
-                <span className="text-base leading-none">{item.icon}</span>
+                <Icon name={item.icon} size={18} />
                 <span>{item.label}</span>
               </button>
             )
