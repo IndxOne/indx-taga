@@ -7,4 +7,8 @@ export default defineConfig({
   server: {
     open: false,
   },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
 })
