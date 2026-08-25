@@ -1,4 +1,5 @@
 import { DEV_TEST_PASSENGER_PHONE } from '../store/useAppStore'
+import { simulate } from './simulate'
 
 const API_URL = import.meta.env.VITE_OTP_API_URL?.replace(/\/$/, '')
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
@@ -26,13 +27,16 @@ export async function sendOtp({ phone, role }) {
       throw new Error('Le service OTP n’est pas configuré.')
     }
 
-    return {
-      challengeId: 'dev-challenge',
-      phone: role === 'passenger' ? DEV_TEST_PASSENGER_PHONE : phone,
-      maskedPhone: role === 'passenger' ? DEV_TEST_PASSENGER_PHONE : phone,
-      expiresIn: 300,
-      devSimulation: true,
-    }
+    return simulate(
+      () => ({
+        challengeId: 'dev-challenge',
+        phone: role === 'passenger' ? DEV_TEST_PASSENGER_PHONE : phone,
+        maskedPhone: role === 'passenger' ? DEV_TEST_PASSENGER_PHONE : phone,
+        expiresIn: 300,
+        devSimulation: true,
+      }),
+      { errorMessage: 'Échec de l’envoi du code. Vérifie ta connexion.' },
+    )
   }
 
   return request('/send-otp', { phone, role })
@@ -43,6 +47,9 @@ export async function verifyOtp({ challengeId, code }) {
     if (!import.meta.env.DEV && !DEMO_MODE) {
       throw new Error('Le service OTP n’est pas configuré.')
     }
+
+    await simulate(true, { errorMessage: 'Échec de la vérification. Réessaie.' })
+
     if (challengeId !== 'dev-challenge' || !/^\d{6}$/.test(code)) {
       throw new Error('Code incorrect ou expiré.')
     }
