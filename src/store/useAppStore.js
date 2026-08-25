@@ -32,6 +32,9 @@ export const RIDE_OPTIONS = [
 export const MOCK_PROFILE = {
   fullName: 'Akissi Koffi',
   phone: '+225 07 07 12 34 56',
+  email: '',
+  vehicleModel: 'Ford Kia Rio',
+  vehiclePlate: 'TAGA-001',
   ratingAvg: 4.9,
   hasDriverProfile: true,
   driverVerificationStatus: 'verified', // pending | verified | rejected
@@ -56,8 +59,13 @@ export const useAppStore = create((set) => ({
   setPhone: (phone) => set({ phone }),
   otpChallengeId: '',
   otpMaskedPhone: '',
-  setOtpChallenge: ({ challengeId, maskedPhone }) => set({ otpChallengeId: challengeId, otpMaskedPhone: maskedPhone }),
-  clearOtpChallenge: () => set({ otpChallengeId: '', otpMaskedPhone: '' }),
+  otpExpiresAt: 0,
+  setOtpChallenge: ({ challengeId, maskedPhone, expiresIn = 300 }) => set({
+    otpChallengeId: challengeId,
+    otpMaskedPhone: maskedPhone,
+    otpExpiresAt: Date.now() + (expiresIn * 1000),
+  }),
+  clearOtpChallenge: () => set({ otpChallengeId: '', otpMaskedPhone: '', otpExpiresAt: 0 }),
 
   ride: MOCK_RIDE,
   driver: MOCK_DRIVER,
@@ -83,6 +91,7 @@ export const useAppStore = create((set) => ({
   setRating: (rating) => set({ rating }),
 
   profile: MOCK_PROFILE,
+  updateProfile: (profile) => set((state) => ({ profile: { ...state.profile, ...profile } })),
   rideHistory: MOCK_RIDE_HISTORY,
 
   paymentMethods: MOCK_PAYMENT_METHODS,
@@ -95,5 +104,5 @@ export const useAppStore = create((set) => ({
       paymentMethods: state.paymentMethods.map((m) => ({ ...m, isDefault: m.id === id })),
     })),
 
-  logout: () => set({ role: null, phone: '', otpChallengeId: '', otpMaskedPhone: '', rideStatus: 'idle', driverAvailable: false }),
+  logout: () => set({ role: null, phone: '', otpChallengeId: '', otpMaskedPhone: '', otpExpiresAt: 0, rideStatus: 'idle', driverAvailable: false }),
 }))

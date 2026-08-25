@@ -4,6 +4,7 @@ import MapView from '../../components/MapView'
 import AmountTile from '../../components/AmountTile'
 import ToggleSwitch from '../../components/ToggleSwitch'
 import { DRIVER_NAV_ITEMS, ROUTES } from '../../navigation/routes'
+import Icon from '../../components/Icon'
 
 export default function Online() {
   const navigate = useNavigate()
@@ -39,7 +40,7 @@ export default function Online() {
         <div className="absolute left-1/2 top-[42%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
           <span className="absolute h-44 w-44 animate-pulse rounded-full bg-taga-green/20" />
           <span className="absolute h-28 w-28 rounded-full bg-taga-green/30" />
-          <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-taga-green text-2xl text-white shadow-lg">🚗</span>
+          <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-taga-green text-white shadow-lg"><Icon name="car" size={27} /></span>
         </div>
       </MapView>
 
@@ -68,7 +69,7 @@ export default function Online() {
         </div>
 
         <div className="flex items-center gap-3 rounded-xl bg-[#fff5e8] px-3 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-taga-mango/20 text-sm">🎯</div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-taga-mango/20 text-taga-mango"><Icon name="target" size={16} /></div>
           <div>
             <p className="text-xs font-semibold text-gray-800">Bonus +5 000 F</p>
             <p className="text-[10px] text-gray-400">13/18 courses cette semaine · plus que 5</p>

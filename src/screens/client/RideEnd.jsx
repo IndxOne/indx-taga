@@ -5,7 +5,7 @@ import AmountTile from '../../components/AmountTile'
 import RatingStars from '../../components/RatingStars'
 import PrimaryButton from '../../components/PrimaryButton'
 
-const TAGS = ['Conduite 🚗', 'À l\'heure 🕒', 'Voiture propre ✨']
+const TAGS = ['Conduite', 'À l\'heure', 'Voiture propre']
 const COMPLETION_META = '24 AOÛT 2026 · 18:42'
 
 export default function RideEnd() {
@@ -37,7 +37,7 @@ export default function RideEnd() {
     <div className="flex-1 overflow-y-auto bg-[#f4f6fa] px-5 pb-3 pt-8 flex flex-col gap-4">
       <div className="text-center">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-taga-green text-3xl text-white shadow-[0_8px_20px_rgba(54,171,82,0.25)]">✓</div>
-        <h1 className="mt-3 text-xl font-bold text-taga-navy">Arrivé à bon port ✨</h1>
+        <h1 className="mt-3 text-xl font-bold text-taga-navy">Arrivé à bon port</h1>
         <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-gray-400">
           {COMPLETION_META} · {ride.durationMin} min · {ride.distanceKm} km
         </p>

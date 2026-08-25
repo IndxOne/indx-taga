@@ -15,7 +15,7 @@ export default function RideHistory() {
       </div>
 
       {rideHistory.length === 0 ? (
-        <EmptyState icon="🧾" title="Aucune course pour l'instant" subtitle="Vos trajets terminés apparaîtront ici." />
+        <EmptyState icon="receipt" title="Aucune course pour l'instant" subtitle="Vos trajets terminés apparaîtront ici." />
       ) : (
         <div className="flex-1 px-6 overflow-y-auto">
           {rideHistory.map((ride) => (

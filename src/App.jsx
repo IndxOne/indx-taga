@@ -5,6 +5,7 @@ import RoleChoice from './screens/RoleChoice'
 import Onboarding from './screens/Onboarding'
 import Otp from './screens/Otp'
 import Profile from './screens/Profile'
+import CompleteProfile from './screens/CompleteProfile'
 import RideHistory from './screens/RideHistory'
 import PaymentMethods from './screens/PaymentMethods'
 import Home from './screens/client/Home'
@@ -28,6 +29,7 @@ function App() {
           <Route path={ROUTES.onboarding} element={<Onboarding />} />
           <Route path={ROUTES.otp} element={<Otp />} />
           <Route path={ROUTES.profile} element={<Profile />} />
+          <Route path={ROUTES.completeProfile} element={<CompleteProfile />} />
           <Route path={ROUTES.rideHistory} element={<RideHistory />} />
           <Route path={ROUTES.paymentMethods} element={<PaymentMethods />} />
           <Route path={ROUTES.clientHome} element={<Home />} />

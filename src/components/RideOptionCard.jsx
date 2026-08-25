@@ -1,14 +1,17 @@
+import Icon from './Icon'
+
 export default function RideOptionCard({ name, badge, description, price, originalPrice, selected, onSelect }) {
   const formatted = (n) => new Intl.NumberFormat('fr-FR').format(n)
   return (
     <button
       type="button"
       onClick={onSelect}
+      aria-pressed={selected}
       className={`w-full text-left border-2 rounded-xl p-4 flex items-center gap-3 transition-colors ${
         selected ? 'border-taga-blue bg-taga-blue/5' : 'border-gray-100'
       }`}
     >
-      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-xl shrink-0">🚗</div>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-taga-blue"><Icon name="car" size={19} /></div>
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="font-semibold">{name}</span>

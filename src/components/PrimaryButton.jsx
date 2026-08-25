@@ -10,7 +10,7 @@ export default function PrimaryButton({ children, onClick, variant = 'navy', dis
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`w-full py-4 rounded-xl font-semibold text-base transition-opacity disabled:opacity-40 disabled:cursor-not-allowed ${VARIANTS[variant]}`}
+      className={`w-full min-h-11 py-3 rounded-xl font-semibold text-base transition-opacity disabled:opacity-40 disabled:cursor-not-allowed ${VARIANTS[variant]}`}
     >
       {children}
     </button>

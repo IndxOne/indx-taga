@@ -1,4 +1,4 @@
-export default function PhoneInput({ value, onChange }) {
+export default function PhoneInput({ value, onChange, id = 'phone', ariaLabel = 'Numéro de téléphone' }) {
   return (
     <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-3">
       <span className="flex items-center gap-1.5 text-sm text-gray-600 shrink-0">
@@ -6,8 +6,11 @@ export default function PhoneInput({ value, onChange }) {
         +225
       </span>
       <input
+        id={id}
         type="tel"
         inputMode="numeric"
+        aria-label={ariaLabel}
+        autoComplete="tel"
         placeholder="07 07 12 34 56"
         value={value}
         onChange={(e) => onChange(e.target.value)}

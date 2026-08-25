@@ -27,7 +27,11 @@ export default function Onboarding() {
     try {
       const result = await sendOtp({ phone: targetPhone, role })
       savePhone(result.phone || targetPhone)
-      setOtpChallenge({ challengeId: result.challengeId, maskedPhone: result.maskedPhone || result.phone || targetPhone })
+      setOtpChallenge({
+        challengeId: result.challengeId,
+        maskedPhone: result.maskedPhone || result.phone || targetPhone,
+        expiresIn: result.expiresIn,
+      })
       navigate('/otp')
     } catch (sendError) {
       setError(sendError.message)
@@ -51,7 +55,7 @@ export default function Onboarding() {
       <div className="mt-auto pt-10">
         <p className="text-xs font-semibold text-white/50 tracking-wider mb-2">TON NUMÉRO</p>
         <div className="bg-white rounded-xl text-gray-900">
-          <PhoneInput value={phone} onChange={setPhone} />
+          <PhoneInput value={phone} onChange={setPhone} id="onboarding-phone" />
         </div>
         {usesTestPassengerPhone && (
           <p className="text-xs text-white/55 mt-2 text-center">

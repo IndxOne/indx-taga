@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom'
 import MapView from '../../components/MapView'
 import BottomNavBar from '../../components/BottomNavBar'
+import Icon from '../../components/Icon'
 
 const FAVORITES = [
-  { icon: '🏠', label: 'Maison', sub: 'Cocody · Riviera 3', accent: 'bg-indigo-50' },
-  { icon: '💼', label: 'Bureau', sub: 'Plateau · Tour CAISTAB', accent: 'bg-emerald-50' },
-  { icon: '✈️', label: 'Aéroport FHB', sub: 'Port-Bouët · 23 km', accent: 'bg-violet-50' },
+  { icon: 'home', label: 'Maison', sub: 'Cocody · Riviera 3', accent: 'bg-indigo-50' },
+  { icon: 'briefcase', label: 'Bureau', sub: 'Plateau · Tour CAISTAB', accent: 'bg-emerald-50' },
+  { icon: 'route', label: 'Aéroport FHB', sub: 'Port-Bouët · 23 km', accent: 'bg-violet-50' },
 ]
 
 export default function Home() {
@@ -32,7 +33,7 @@ export default function Home() {
       <div className="flex-1 bg-white -mt-6 rounded-t-3xl px-5 py-6 flex flex-col gap-5">
         <div className="mx-auto -mt-2 h-1 w-10 rounded-full bg-gray-200" aria-hidden="true" />
         <div>
-          <h1 className="text-xl font-bold">Bonjour Akissi 👋</h1>
+          <h1 className="text-xl font-bold">Bonjour Akissi</h1>
           <p className="text-gray-500 text-sm">Où on va aujourd'hui ?</p>
         </div>
 
@@ -54,7 +55,7 @@ export default function Home() {
               aria-label={`Commander une course vers ${favorite.label}`}
               className="flex items-center gap-3 rounded-xl px-1 py-1 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-taga-blue/30"
             >
-              <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${favorite.accent}`}>{favorite.icon}</span>
+              <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${favorite.accent}`}><Icon name={favorite.icon} size={19} /></span>
               <span className="flex-1">
                 <span className="block font-semibold text-sm">{favorite.label}</span>
                 <span className="block text-xs text-gray-400">{favorite.sub}</span>

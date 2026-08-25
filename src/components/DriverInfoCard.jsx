@@ -1,3 +1,5 @@
+import Icon from './Icon'
+
 export default function DriverInfoCard({ driver, onMessage, onCall }) {
   const initials = driver.name
     .split(' ')
@@ -18,10 +20,10 @@ export default function DriverInfoCard({ driver, onMessage, onCall }) {
           </p>
         </div>
         <button type="button" onClick={onMessage} aria-label="Message au chauffeur" className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-          💬
+          <Icon name="message" size={18} />
         </button>
         <button type="button" onClick={onCall} aria-label="Appeler le chauffeur" className="w-10 h-10 rounded-full bg-taga-green text-white flex items-center justify-center">
-          📞
+          <Icon name="phone" size={18} />
         </button>
       </div>
       <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-sm">

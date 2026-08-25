@@ -46,7 +46,34 @@ export default function Profile() {
         </div>
       )}
 
+      {!profile.fullName || !profile.email ? (
+        <button
+          type="button"
+          onClick={() => navigate('/complete-profile')}
+          className="mx-6 mt-4 flex items-center justify-between rounded-xl border border-taga-mango/30 bg-taga-mango/10 px-4 py-3 text-left"
+        >
+          <span>
+            <strong className="block text-sm text-taga-navy">Profil à compléter</strong>
+            <span className="text-xs text-gray-500">Ajoutez vos informations pour continuer.</span>
+          </span>
+          <span className="text-taga-mango" aria-hidden="true">→</span>
+        </button>
+      ) : (
+        <div className="mx-6 mt-4 flex items-center gap-2 rounded-xl bg-taga-green/10 px-4 py-3 text-xs font-semibold text-taga-green" role="status">
+          <span aria-hidden="true">✓</span>
+          Profil complété
+        </div>
+      )}
+
       <div className="flex-1 px-6 py-4 flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => navigate('/complete-profile')}
+          className="flex items-center justify-between py-3 border-b border-gray-100 text-left"
+        >
+          <span className="text-sm font-medium">Modifier mon profil</span>
+          <span className="text-gray-300">→</span>
+        </button>
         <button
           type="button"
           onClick={() => navigate('/payment-methods')}

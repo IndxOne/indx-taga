@@ -4,6 +4,7 @@ import PaymentMethodTile from '../components/PaymentMethodTile'
 import PrimaryButton from '../components/PrimaryButton'
 import AmountTile from '../components/AmountTile'
 import BottomNavBar from '../components/BottomNavBar'
+import Icon from '../components/Icon'
 
 export default function PaymentMethods() {
   const role = useAppStore((state) => state.role)
@@ -36,7 +37,7 @@ export default function PaymentMethods() {
       <div className="flex-1 px-6 pt-8 pb-6 overflow-y-auto">
         <div className="flex items-center gap-3">
           <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${isDriver ? 'bg-taga-green/10' : 'bg-taga-blue/10'}`}>
-            {isDriver ? '💰' : '💳'}
+            <Icon name={isDriver ? 'wallet' : 'card'} size={21} />
           </div>
           <div>
             <h1 className="text-xl font-bold leading-tight">{title}</h1>
@@ -84,7 +85,7 @@ export default function PaymentMethods() {
         )}
 
         <div className="mt-6 flex items-start gap-2 bg-gray-50 rounded-xl px-3 py-3">
-          <span className="text-sm">🔒</span>
+          <Icon name="lock" size={16} className="mt-0.5 shrink-0 text-taga-blue" />
           <p className="text-xs text-gray-500 leading-relaxed">
             {isDriver
               ? 'Tes gains sont crédités automatiquement après chaque course terminée, retrait instantané et sans frais.'

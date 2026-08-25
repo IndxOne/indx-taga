@@ -5,3 +5,43 @@
 body {
   margin: 0;
 }
+
+button,
+[role='button'],
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+[role='button'] {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+button:focus-visible,
+[role='button']:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(0, 5, 214, 0.45);
+  outline-offset: 3px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

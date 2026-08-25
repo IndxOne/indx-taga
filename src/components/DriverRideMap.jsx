@@ -33,7 +33,7 @@ function MapMarker({ type, position, label }) {
       aria-label={label}
     >
       <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm shadow-lg ${styles[type]}`}>
-        {type === 'driver' ? '🚗' : type === 'pickup' ? '●' : '■'}
+        {type === 'driver' ? <Icon name="car" size={15} /> : type === 'pickup' ? <Icon name="pin" size={15} /> : <Icon name="route" size={15} />}
       </div>
       <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-white/90 px-1.5 py-0.5 text-[9px] font-semibold text-gray-600 shadow-sm">
         {label}
@@ -60,3 +60,4 @@ export default function DriverRideMap({ phase = 'request' }) {
     </>
   )
 }
+import Icon from './Icon'

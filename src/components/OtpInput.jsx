@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 
-export default function OtpInput({ value, onChange, length = 6 }) {
+export default function OtpInput({ value, onChange, length = 6, disabled = false, invalid = false }) {
   const inputsRef = useRef([])
   const digits = value.padEnd(length, ' ').split('').slice(0, length)
 
@@ -43,9 +43,11 @@ export default function OtpInput({ value, onChange, length = 6 }) {
           autoComplete={index === 0 ? 'one-time-code' : 'off'}
           autoFocus={index === 0}
           value={digit.trim()}
+          disabled={disabled}
+          aria-invalid={invalid}
           onChange={(e) => handleChange(index, e.target.value)}
           onKeyDown={(e) => handleKeyDown(index, e)}
-          className="w-11 h-12 text-center text-lg font-bold rounded-xl border border-gray-200 outline-none focus:border-taga-blue"
+          className={`h-12 w-11 shrink-0 text-center text-lg font-bold rounded-xl border outline-none focus:border-taga-blue disabled:bg-gray-100 disabled:text-gray-400 ${invalid ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
         />
       ))}
     </div>

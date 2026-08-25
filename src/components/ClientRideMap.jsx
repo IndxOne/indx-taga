@@ -20,7 +20,7 @@ function Marker({ type, position, label }) {
   return (
     <div className="absolute z-10 -translate-x-1/2 -translate-y-1/2" style={position} aria-label={label}>
       <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs shadow-md ${styles[type]}`}>
-        {type === 'driver' ? '🚗' : type === 'pickup' ? '●' : '■'}
+        {type === 'driver' ? <Icon name="car" size={15} /> : type === 'pickup' ? <Icon name="pin" size={15} /> : <Icon name="route" size={15} />}
       </div>
       {type === 'driver' && (
         <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded-full bg-taga-blue px-2 py-1 text-[9px] font-semibold text-white shadow-sm">
@@ -51,3 +51,4 @@ export default function ClientRideMap({ phase = 'estimate' }) {
     </>
   )
 }
+import Icon from './Icon'

@@ -14,7 +14,7 @@ export default function RatingStars({ value, onChange, readOnly = false, shape =
           onClick={() => onChange?.(star)}
           onMouseEnter={() => !readOnly && setHover(star)}
           onMouseLeave={() => !readOnly && setHover(0)}
-          className={`flex h-10 w-10 items-center justify-center text-lg ${shape === 'square' ? 'rounded-lg' : 'rounded-full'} ${
+          className={`flex h-11 w-11 items-center justify-center text-lg ${shape === 'square' ? 'rounded-lg' : 'rounded-full'} ${
             star <= display ? 'bg-taga-green text-white' : 'bg-gray-100 text-gray-400'
           }`}
         >

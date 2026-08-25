@@ -6,6 +6,7 @@ import PrimaryButton from '../../components/PrimaryButton'
 import BackButton from '../../components/BackButton'
 import { ROUTES } from '../../navigation/routes'
 import DriverRideMap from '../../components/DriverRideMap'
+import Icon from '../../components/Icon'
 
 export default function Navigation() {
   const navigate = useNavigate()
@@ -28,7 +29,7 @@ export default function Navigation() {
     <div className="flex-1 flex flex-col">
       <div className="bg-taga-navy text-white px-4 py-3 flex items-center gap-3">
         <BackButton to={ROUTES.driverOnline} />
-        <span className="w-9 h-9 rounded-lg bg-taga-mango flex items-center justify-center">↑</span>
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-taga-mango"><Icon name="arrowUp" size={18} /></span>
         <div><p className="font-bold">200 m</p><p className="text-xs text-white/60">Tout droit sur Bd Latrille</p></div>
       </div>
       <MapView className="flex-1" aria-label="Navigation vers le passager">
@@ -41,8 +42,8 @@ export default function Navigation() {
             <p className="font-semibold text-taga-navy">Akissi K.</p>
             <p className="text-xs text-gray-400">★ 4.96 · cliente régulière</p>
           </div>
-          <button type="button" onClick={() => setContactNotice('Message simulé envoyé à Akissi.')} aria-label="Message à la cliente" className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100">💬</button>
-          <button type="button" onClick={() => setContactNotice('Appel simulé vers Akissi.')} aria-label="Appeler la cliente" className="flex h-9 w-9 items-center justify-center rounded-lg bg-taga-green text-white">📞</button>
+          <button type="button" onClick={() => setContactNotice('Message simulé envoyé à Akissi.')} aria-label="Message à la cliente" className="flex h-11 w-11 items-center justify-center rounded-lg bg-gray-100"><Icon name="message" size={18} /></button>
+          <button type="button" onClick={() => setContactNotice('Appel simulé vers Akissi.')} aria-label="Appeler la cliente" className="flex h-11 w-11 items-center justify-center rounded-lg bg-taga-green text-white"><Icon name="phone" size={18} /></button>
         </div>
         <div className="rounded-xl bg-gray-50 px-3 py-2 text-xs">
           <p className="font-bold uppercase tracking-wide text-taga-blue">Pickup</p>

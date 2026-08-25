@@ -12,9 +12,11 @@ export default function Otp() {
   const phone = useAppStore((state) => state.phone)
   const otpChallengeId = useAppStore((state) => state.otpChallengeId)
   const otpMaskedPhone = useAppStore((state) => state.otpMaskedPhone)
+  const otpExpiresAt = useAppStore((state) => state.otpExpiresAt)
   const setOtpChallenge = useAppStore((state) => state.setOtpChallenge)
   const [code, setCode] = useState('')
   const [cooldown, setCooldown] = useState(30)
+  const [secondsLeft, setSecondsLeft] = useState(() => Math.max(0, Math.ceil((otpExpiresAt - Date.now()) / 1000)))
   const [isVerifying, setIsVerifying] = useState(false)
   const [isResending, setIsResending] = useState(false)
   const [error, setError] = useState('')
@@ -25,9 +27,25 @@ export default function Otp() {
     return () => clearTimeout(timer)
   }, [cooldown])
 
+  useEffect(() => {
+    if (!otpChallengeId) {
+      navigate(ROUTES.onboarding, { replace: true })
+      return undefined
+    }
+    const timer = setInterval(() => {
+      setSecondsLeft(Math.max(0, Math.ceil((otpExpiresAt - Date.now()) / 1000)))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [navigate, otpChallengeId, otpExpiresAt])
+
   const isComplete = code.length === 6
+  const isExpired = secondsLeft === 0
 
   const handleVerify = async () => {
+    if (isExpired) {
+      setError('Ce code a expiré. Demande un nouveau code pour continuer.')
+      return
+    }
     setIsVerifying(true)
     setError('')
     try {
@@ -45,9 +63,14 @@ export default function Otp() {
     setError('')
     try {
       const result = await resendOtp({ phone, role, challengeId: otpChallengeId })
-      setOtpChallenge({ challengeId: result.challengeId, maskedPhone: result.maskedPhone || result.phone || phone })
+      setOtpChallenge({
+        challengeId: result.challengeId,
+        maskedPhone: result.maskedPhone || result.phone || phone,
+        expiresIn: result.expiresIn,
+      })
       setCode('')
       setCooldown(30)
+      setSecondsLeft(result.expiresIn ?? 300)
     } catch (resendError) {
       setError(resendError.message)
     } finally {
@@ -69,9 +92,13 @@ export default function Otp() {
         </button>
       </div>
 
-      <div className="mt-10">
-        <OtpInput value={code} onChange={setCode} />
+      <div className="mt-10" aria-busy={isVerifying || isResending}>
+        <OtpInput value={code} onChange={setCode} disabled={isVerifying || isExpired} invalid={Boolean(error)} />
       </div>
+
+      <p className={`mt-3 text-center text-xs ${isExpired ? 'font-semibold text-red-500' : 'text-gray-400'}`} role="status">
+        {isExpired ? 'Code expiré' : `Le code est valable encore ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`}
+      </p>
 
       <button
         type="button"
@@ -85,7 +112,7 @@ export default function Otp() {
       {error && <p role="alert" className="text-sm text-red-500 text-center mt-4">{error}</p>}
 
       <div className="mt-auto">
-        <PrimaryButton onClick={handleVerify} disabled={!isComplete || isVerifying}>
+        <PrimaryButton onClick={handleVerify} disabled={!isComplete || isVerifying || isExpired}>
           {isVerifying ? 'Vérification…' : 'Vérifier'}
         </PrimaryButton>
       </div>

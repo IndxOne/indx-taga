@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/useAppStore'
 import RoleCard from '../components/RoleCard'
 import Logo from '../components/Logo'
+import Icon from '../components/Icon'
 
 export default function RoleChoice() {
   const navigate = useNavigate()
@@ -23,7 +24,7 @@ export default function RoleChoice() {
 
       <div className="flex flex-col gap-3">
         <RoleCard
-          icon="🚕"
+          icon={<Icon name="taxi" size={24} />}
           badge="PASSAGER"
           badgeColor="bg-taga-mango"
           iconBg="bg-taga-mango"
@@ -32,7 +33,7 @@ export default function RoleChoice() {
           onSelect={() => selectRole('passenger')}
         />
         <RoleCard
-          icon="🚗"
+          icon={<Icon name="car" size={24} />}
           badge="CHAUFFEUR"
           badgeColor="bg-taga-green"
           iconBg="bg-taga-green"

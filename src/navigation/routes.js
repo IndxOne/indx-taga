@@ -4,6 +4,7 @@ export const ROUTES = {
   onboarding: '/onboarding',
   otp: '/otp',
   profile: '/profile',
+  completeProfile: '/complete-profile',
   rideHistory: '/ride-history',
   paymentMethods: '/payment-methods',
   clientHome: '/client/home',
@@ -18,15 +19,15 @@ export const ROUTES = {
 }
 
 export const CLIENT_NAV_ITEMS = [
-  { icon: '🏠', label: 'Accueil', path: ROUTES.clientHome },
-  { icon: '🧾', label: 'Trajets', path: ROUTES.rideHistory },
-  { icon: '💳', label: 'Paiements', path: ROUTES.paymentMethods },
-  { icon: '👤', label: 'Profil', path: ROUTES.profile },
+  { icon: 'home', label: 'Accueil', path: ROUTES.clientHome },
+  { icon: 'receipt', label: 'Trajets', path: ROUTES.rideHistory },
+  { icon: 'card', label: 'Paiements', path: ROUTES.paymentMethods },
+  { icon: 'user', label: 'Profil', path: ROUTES.profile },
 ]
 
 export const DRIVER_NAV_ITEMS = [
-  { icon: '🚗', label: 'Travail', path: ROUTES.driverOnline },
-  { icon: '💰', label: 'Gains', path: ROUTES.paymentMethods },
-  { icon: '🧾', label: 'Courses', path: ROUTES.rideHistory },
-  { icon: '👤', label: 'Profil', path: ROUTES.profile },
+  { icon: 'car', label: 'Travail', path: ROUTES.driverOnline },
+  { icon: 'wallet', label: 'Gains', path: ROUTES.paymentMethods },
+  { icon: 'receipt', label: 'Courses', path: ROUTES.rideHistory },
+  { icon: 'user', label: 'Profil', path: ROUTES.profile },
 ]
