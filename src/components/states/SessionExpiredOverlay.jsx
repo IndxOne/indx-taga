@@ -3,12 +3,14 @@ import { useAppStore } from '../../store/useAppStore'
 import Icon from '../Icon'
 import PrimaryButton from '../PrimaryButton'
 import { ROUTES } from '../../navigation/routes'
+import { getAuthService } from '../../services/authService'
 
 export default function SessionExpiredOverlay() {
   const navigate = useNavigate()
   const logout = useAppStore((state) => state.logout)
 
-  const handleReconnect = () => {
+  const handleReconnect = async () => {
+    await getAuthService().signOut()
     logout()
     navigate(ROUTES.onboarding, { replace: true })
   }

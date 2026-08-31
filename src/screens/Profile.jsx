@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/useAppStore'
 import RatingStars from '../components/RatingStars'
 import BottomNavBar from '../components/BottomNavBar'
+import { getAuthService } from '../services/authService'
+import { isDemoMode } from '../services/runtimeConfig'
 
 export default function Profile() {
   const navigate = useNavigate()
@@ -22,9 +24,10 @@ export default function Profile() {
     navigate(nextRole === 'driver' ? '/driver/online' : '/client/home')
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await getAuthService().signOut()
     logout()
-    navigate('/role-choice')
+    navigate('/role-choice', { replace: true })
   }
 
   return (
@@ -91,7 +94,7 @@ export default function Profile() {
           <span className="text-gray-300">→</span>
         </button>
 
-        {profile.hasDriverProfile && (
+        {profile.hasDriverProfile && isDemoMode && (
           <button
             type="button"
             onClick={switchRole}

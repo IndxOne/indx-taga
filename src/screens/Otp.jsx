@@ -5,6 +5,8 @@ import OtpInput from '../components/OtpInput'
 import PrimaryButton from '../components/PrimaryButton'
 import { resendOtp, verifyOtp } from '../services/otpService'
 import { ROUTES } from '../navigation/routes'
+import { ensureCurrentProfile, toAppProfile } from '../services/accountService'
+import { isDemoMode } from '../services/runtimeConfig'
 
 export default function Otp() {
   const navigate = useNavigate()
@@ -14,7 +16,8 @@ export default function Otp() {
   const otpMaskedPhone = useAppStore((state) => state.otpMaskedPhone)
   const otpExpiresAt = useAppStore((state) => state.otpExpiresAt)
   const setOtpChallenge = useAppStore((state) => state.setOtpChallenge)
-  const startSession = useAppStore((state) => state.startSession)
+  const setAuthState = useAppStore((state) => state.setAuthState)
+  const updateProfile = useAppStore((state) => state.updateProfile)
   const [code, setCode] = useState('')
   const [cooldown, setCooldown] = useState(30)
   const [secondsLeft, setSecondsLeft] = useState(() => Math.max(0, Math.ceil((otpExpiresAt - Date.now()) / 1000)))
@@ -29,7 +32,7 @@ export default function Otp() {
   }, [cooldown])
 
   useEffect(() => {
-    if (!otpChallengeId) {
+    if (!phone || (isDemoMode && !otpChallengeId)) {
       navigate(ROUTES.onboarding, { replace: true })
       return undefined
     }
@@ -37,7 +40,7 @@ export default function Otp() {
       setSecondsLeft(Math.max(0, Math.ceil((otpExpiresAt - Date.now()) / 1000)))
     }, 1000)
     return () => clearInterval(timer)
-  }, [navigate, otpChallengeId, otpExpiresAt])
+  }, [navigate, otpChallengeId, otpExpiresAt, phone])
 
   const isComplete = code.length === 6
   const isExpired = secondsLeft === 0
@@ -50,9 +53,17 @@ export default function Otp() {
     setIsVerifying(true)
     setError('')
     try {
-      await verifyOtp({ challengeId: otpChallengeId, code })
-      startSession()
-      navigate(role === 'driver' ? ROUTES.driverOnline : ROUTES.clientHome)
+      const result = await verifyOtp({ phone, code })
+      const backendProfile = await ensureCurrentProfile({ role, phone })
+      const appProfile = toAppProfile(backendProfile)
+      setAuthState({
+        status: 'authenticated',
+        user: result.user,
+        role: backendProfile.role,
+        phone: backendProfile.phone || phone,
+      })
+      updateProfile(appProfile)
+      navigate(backendProfile.role === 'driver' ? ROUTES.driverOnline : ROUTES.clientHome)
     } catch (verifyError) {
       setError(verifyError.message)
     } finally {

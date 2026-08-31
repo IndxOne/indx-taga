@@ -2,8 +2,6 @@ import { create } from 'zustand'
 
 export const DEV_TEST_PASSENGER_PHONE = '+330775679067'
 
-const randomBetween = (min, max) => min + Math.random() * (max - min)
-
 export const MOCK_DRIVER = {
   name: 'Mamadou Ndour',
   rating: 4.93,
@@ -57,6 +55,15 @@ export const useAppStore = create((set) => ({
   role: null, // 'passenger' | 'driver'
   setRole: (role) => set({ role }),
 
+  authStatus: 'unknown', // unknown | loading | authenticated | unauthenticated
+  authUser: null,
+  setAuthState: ({ status, user = null, role = null, phone = '' } = {}) => set({
+    authStatus: status,
+    authUser: user,
+    role,
+    phone,
+  }),
+
   phone: '',
   setPhone: (phone) => set({ phone }),
   otpChallengeId: '',
@@ -68,9 +75,6 @@ export const useAppStore = create((set) => ({
     otpExpiresAt: Date.now() + (expiresIn * 1000),
   }),
   clearOtpChallenge: () => set({ otpChallengeId: '', otpMaskedPhone: '', otpExpiresAt: 0 }),
-
-  sessionExpiresAt: 0,
-  startSession: () => set({ sessionExpiresAt: Date.now() + randomBetween(90_000, 240_000) }),
 
   ride: MOCK_RIDE,
   driver: MOCK_DRIVER,
@@ -111,11 +115,12 @@ export const useAppStore = create((set) => ({
 
   logout: () => set({
     role: null,
+    authStatus: 'unauthenticated',
+    authUser: null,
     phone: '',
     otpChallengeId: '',
     otpMaskedPhone: '',
     otpExpiresAt: 0,
-    sessionExpiresAt: 0,
     rideStatus: 'idle',
     driverAvailable: false,
   }),

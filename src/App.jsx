@@ -20,6 +20,10 @@ import RideInProgress from './screens/driver/RideInProgress'
 import PayoutRecap from './screens/driver/PayoutRecap'
 import { ROUTES } from './navigation/routes'
 
+function Protected({ children, role }) {
+  return <SessionGuard requiredRole={role}>{children}</SessionGuard>
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -29,19 +33,19 @@ function App() {
           <Route path={ROUTES.roleChoice} element={<RoleChoice />} />
           <Route path={ROUTES.onboarding} element={<Onboarding />} />
           <Route path={ROUTES.otp} element={<Otp />} />
-          <Route path={ROUTES.profile} element={<SessionGuard><Profile /></SessionGuard>} />
-          <Route path={ROUTES.completeProfile} element={<SessionGuard><CompleteProfile /></SessionGuard>} />
-          <Route path={ROUTES.rideHistory} element={<SessionGuard><RideHistory /></SessionGuard>} />
-          <Route path={ROUTES.paymentMethods} element={<SessionGuard><PaymentMethods /></SessionGuard>} />
-          <Route path={ROUTES.clientHome} element={<SessionGuard><Home /></SessionGuard>} />
-          <Route path={ROUTES.clientEstimate} element={<SessionGuard><Estimate /></SessionGuard>} />
-          <Route path={ROUTES.clientActiveRide} element={<SessionGuard><ActiveRide /></SessionGuard>} />
-          <Route path={ROUTES.clientRideEnd} element={<SessionGuard><RideEnd /></SessionGuard>} />
-          <Route path={ROUTES.driverOnline} element={<SessionGuard><Online /></SessionGuard>} />
-          <Route path={ROUTES.driverIncomingRequest} element={<SessionGuard><IncomingRequest /></SessionGuard>} />
-          <Route path={ROUTES.driverNavigation} element={<SessionGuard><Navigation /></SessionGuard>} />
-          <Route path={ROUTES.driverRideInProgress} element={<SessionGuard><RideInProgress /></SessionGuard>} />
-          <Route path={ROUTES.driverPayoutRecap} element={<SessionGuard><PayoutRecap /></SessionGuard>} />
+          <Route path={ROUTES.profile} element={<Protected><Profile /></Protected>} />
+          <Route path={ROUTES.completeProfile} element={<Protected><CompleteProfile /></Protected>} />
+          <Route path={ROUTES.rideHistory} element={<Protected><RideHistory /></Protected>} />
+          <Route path={ROUTES.paymentMethods} element={<Protected><PaymentMethods /></Protected>} />
+          <Route path={ROUTES.clientHome} element={<Protected role="passenger"><Home /></Protected>} />
+          <Route path={ROUTES.clientEstimate} element={<Protected role="passenger"><Estimate /></Protected>} />
+          <Route path={ROUTES.clientActiveRide} element={<Protected role="passenger"><ActiveRide /></Protected>} />
+          <Route path={ROUTES.clientRideEnd} element={<Protected role="passenger"><RideEnd /></Protected>} />
+          <Route path={ROUTES.driverOnline} element={<Protected role="driver"><Online /></Protected>} />
+          <Route path={ROUTES.driverIncomingRequest} element={<Protected role="driver"><IncomingRequest /></Protected>} />
+          <Route path={ROUTES.driverNavigation} element={<Protected role="driver"><Navigation /></Protected>} />
+          <Route path={ROUTES.driverRideInProgress} element={<Protected role="driver"><RideInProgress /></Protected>} />
+          <Route path={ROUTES.driverPayoutRecap} element={<Protected role="driver"><PayoutRecap /></Protected>} />
           <Route path="*" element={<Navigate to={ROUTES.splash} replace />} />
         </Routes>
       </PhoneFrame>

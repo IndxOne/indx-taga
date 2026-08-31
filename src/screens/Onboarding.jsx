@@ -5,6 +5,7 @@ import PhoneInput from '../components/PhoneInput'
 import PrimaryButton from '../components/PrimaryButton'
 import { DEV_TEST_PASSENGER_PHONE, useAppStore } from '../store/useAppStore'
 import { sendOtp } from '../services/otpService'
+import { normalizePhone } from '../services/phone'
 
 export default function Onboarding() {
   const navigate = useNavigate()
@@ -23,7 +24,7 @@ export default function Onboarding() {
   const handleContinue = async () => {
     setIsSending(true)
     setError('')
-    const targetPhone = usesTestPassengerPhone ? DEV_TEST_PASSENGER_PHONE : phone
+    const targetPhone = usesTestPassengerPhone ? DEV_TEST_PASSENGER_PHONE : normalizePhone(phone)
     try {
       const result = await sendOtp({ phone: targetPhone, role })
       savePhone(result.phone || targetPhone)

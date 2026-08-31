@@ -4,6 +4,7 @@ import BackButton from '../components/BackButton'
 import PrimaryButton from '../components/PrimaryButton'
 import { ROUTES } from '../navigation/routes'
 import { useAppStore } from '../store/useAppStore'
+import { updateCurrentProfile } from '../services/accountService'
 
 export default function CompleteProfile() {
   const navigate = useNavigate()
@@ -15,20 +16,29 @@ export default function CompleteProfile() {
   const [vehicleModel, setVehicleModel] = useState(profile.vehicleModel ?? '')
   const [vehiclePlate, setVehiclePlate] = useState(profile.vehiclePlate ?? '')
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
   const isDriver = role === 'driver'
   const isValid = fullName.trim().length >= 2 && email.includes('@') && (!isDriver || (vehicleModel.trim() && vehiclePlate.trim()))
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     if (!isValid) return
 
-    updateProfile({
+    const nextProfile = {
       fullName: fullName.trim(),
       email: email.trim(),
       ...(isDriver ? { vehicleModel: vehicleModel.trim(), vehiclePlate: vehiclePlate.trim() } : {}),
-    })
-    setSaved(true)
+    }
+    try {
+      const persistedProfile = await updateCurrentProfile(nextProfile)
+      updateProfile(persistedProfile)
+      setError('')
+      setSaved(true)
+    } catch (updateError) {
+      setSaved(false)
+      setError(updateError.message || 'Le profil n’a pas pu être enregistré.')
+    }
   }
 
   return (
@@ -98,6 +108,11 @@ export default function CompleteProfile() {
         {saved && (
           <div role="status" className="rounded-xl bg-taga-green/10 px-4 py-3 text-sm font-semibold text-taga-green">
             Profil enregistré avec succès.
+          </div>
+        )}
+        {error && (
+          <div role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error}
           </div>
         )}
 
