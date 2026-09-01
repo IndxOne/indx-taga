@@ -4,7 +4,15 @@
 
 [build.environment]
   NODE_VERSION = "20"
+
+[context.production.environment]
   VITE_DEMO_MODE = "true"
+
+[context.deploy-preview.environment]
+  VITE_DEMO_MODE = "false"
+
+[context.branch-deploy.environment]
+  VITE_DEMO_MODE = "false"
 
 [[redirects]]
   from = "/*"
