@@ -38,6 +38,8 @@ const REAL_STATUS_COPY = {
   no_driver: 'Aucun chauffeur n’est disponible pour le moment.',
 }
 
+const SEARCH_STATUSES = new Set(['requested', 'searching'])
+
 function mapRealtimeRideToStore(backendRide) {
   return {
     id: backendRide.id,
@@ -67,6 +69,9 @@ export default function ActiveRide() {
   const setRideStatus = useAppStore((state) => state.setRideStatus)
   const [contactNotice, setContactNotice] = useState('')
   const [dispatchError, setDispatchError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
   const [realtimeError, setRealtimeError] = useState('')
   const [driverLocation, setDriverLocation] = useState(null)
   const showDriverDetails = isDemoMode
@@ -101,6 +106,34 @@ export default function ActiveRide() {
       cancelled = true
     }
   }, [ride, rideStatus, setRideStatus, updateRide])
+
+  useEffect(() => {
+    if (isDemoMode || rideStatus !== 'searching' || !ride?.id || !ride.dispatchDeadlineAt) return undefined
+
+    let cancelled = false
+    const remaining = Math.max(0, Date.parse(ride.dispatchDeadlineAt) - Date.now())
+    const timer = setTimeout(async () => {
+      try {
+        const expiredRide = await getDispatchService().requestRideDispatch(ride.id)
+        if (cancelled) return
+        updateRide({
+          id: expiredRide.id,
+          status: expiredRide.status,
+          driverId: expiredRide.driverId,
+          dispatchDeadlineAt: expiredRide.dispatchDeadlineAt,
+          assignedAt: expiredRide.assignedAt,
+        })
+        setRideStatus(expiredRide.status)
+      } catch (error) {
+        if (!cancelled) setDispatchError(error.message || 'La recherche n’a pas pu être actualisée.')
+      }
+    }, remaining + 1)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [ride?.dispatchDeadlineAt, ride?.id, rideStatus, setRideStatus, updateRide])
 
   useEffect(() => {
     if (isDemoMode || !ride?.id) return undefined
@@ -150,6 +183,37 @@ export default function ActiveRide() {
     if (next === 'in_progress') navigate('/client/ride-end')
   }
 
+  const cancelSearch = async () => {
+    if (!ride?.id || isCancelling) return
+    setIsCancelling(true)
+    setActionError('')
+    try {
+      const cancelledRide = await getRideService().cancelRideSearch(ride.id)
+      updateRide({ id: cancelledRide.id, status: cancelledRide.status, dispatchDeadlineAt: null })
+      setRideStatus(cancelledRide.status)
+      navigate('/client/home', { replace: true })
+    } catch (error) {
+      setActionError(error.message || 'La recherche n’a pas pu être annulée.')
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
+  const retrySearch = async () => {
+    if (!ride?.id || isRetrying) return
+    setIsRetrying(true)
+    setActionError('')
+    try {
+      const retriedRide = await getRideService().retryRideSearch(ride.id)
+      updateRide({ id: retriedRide.id, status: retriedRide.status, driverId: null, dispatchDeadlineAt: null })
+      setRideStatus(retriedRide.status)
+    } catch (error) {
+      setActionError(error.message || 'La recherche n’a pas pu être relancée.')
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
   return (
     <div className="flex-1 flex flex-col">
       <MapProvider className="h-72 shrink-0" aria-label="Carte de la course active">
@@ -188,7 +252,25 @@ export default function ActiveRide() {
         )}
 
         {dispatchError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-center text-xs text-red-600">{dispatchError}</p>}
+        {actionError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-center text-xs text-red-600">{actionError}</p>}
         {realtimeError && <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-700">{realtimeError}</p>}
+
+        {SEARCH_STATUSES.has(rideStatus) && (
+          <button
+            type="button"
+            onClick={cancelSearch}
+            disabled={isCancelling}
+            className="mt-auto min-h-11 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 disabled:opacity-60"
+          >
+            {isCancelling ? 'Annulation…' : 'Annuler la recherche'}
+          </button>
+        )}
+
+        {!isDemoMode && rideStatus === 'no_driver' && <div className="mt-auto">
+          <PrimaryButton variant="green" onClick={retrySearch} disabled={isRetrying}>
+            {isRetrying ? 'Relance en cours…' : 'Réessayer'}
+          </PrimaryButton>
+        </div>}
 
         {isDemoMode && <div className="mt-auto">
           <PrimaryButton variant="green" onClick={advance}>

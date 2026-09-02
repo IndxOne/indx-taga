@@ -108,6 +108,28 @@ export class SupabaseRideService {
     if (error) throw error
     return fromDatabaseRow(data)
   }
+
+  async cancelRideSearch(rideId) {
+    if (typeof rideId !== 'string' || !rideId.trim()) {
+      throw validationError('Un identifiant de course est requis.')
+    }
+    const { data, error } = await (await this.getClient()).rpc('cancel_ride_search', {
+      p_ride_id: rideId,
+    })
+    if (error) throw error
+    return fromDatabaseRow(data)
+  }
+
+  async retryRideSearch(rideId) {
+    if (typeof rideId !== 'string' || !rideId.trim()) {
+      throw validationError('Un identifiant de course est requis.')
+    }
+    const { data, error } = await (await this.getClient()).rpc('retry_ride_search', {
+      p_ride_id: rideId,
+    })
+    if (error) throw error
+    return fromDatabaseRow(data)
+  }
 }
 
 export class DemoRideService {
@@ -126,6 +148,16 @@ export class DemoRideService {
       createdAt: now,
       updatedAt: now,
     }
+  }
+
+  async cancelRideSearch(rideId) {
+    if (typeof rideId !== 'string' || !rideId.trim()) throw validationError('Un identifiant de course est requis.')
+    return { id: rideId, status: 'cancelled', estimatedPrice: null }
+  }
+
+  async retryRideSearch(rideId) {
+    if (typeof rideId !== 'string' || !rideId.trim()) throw validationError('Un identifiant de course est requis.')
+    return { id: rideId, status: 'requested', estimatedPrice: null }
   }
 }
 

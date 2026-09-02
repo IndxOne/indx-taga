@@ -32,6 +32,15 @@ lecture : une position de plus de 60 secondes est filtrée par PostgreSQL. Le
 service frontend applique le même TTL avant l'affichage et efface la position
 sur une suppression Realtime ou dès que la course quitte un statut actif.
 
+Une recherche `requested` ou `searching` peut être annulée par son passager via
+`cancel_ride_search`. La RPC verrouille la course, ferme les offres encore
+`offered`, passe la course à `cancelled` et écrit l'historique. Après expiration
+du délai de recherche, `retry_ride_search` remet uniquement une course
+`no_driver` à `requested`; le client relance ensuite la recherche normale.
+Les migrations `007_dispatch_offer_cancellation.sql` puis
+`008_cancel_ride_search.sql` doivent être appliquées dans cet ordre après la
+migration 006.
+
 La publication Realtime porte sur `rides` et `driver_locations`. Il faut
 appliquer la migration dans le projet Supabase de recette avant de tester une
 position réelle.

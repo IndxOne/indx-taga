@@ -95,6 +95,24 @@ describe('SupabaseRideService', () => {
 
     expect(rpc.mock.calls[0][1].p_scheduled_at).toBe('2026-12-20T10:00:00.000Z')
   })
+
+  it('annule la recherche via une RPC serveur dédiée', async () => {
+    const cancelledRide = { ...databaseRide, status: 'cancelled' }
+    const rpc = vi.fn().mockResolvedValue({ data: cancelledRide, error: null })
+    const service = new SupabaseRideService({ client: { rpc } })
+
+    await expect(service.cancelRideSearch('ride-1')).resolves.toMatchObject({ id: 'ride-1', status: 'cancelled' })
+    expect(rpc).toHaveBeenCalledWith('cancel_ride_search', { p_ride_id: 'ride-1' })
+  })
+
+  it('relance la recherche uniquement via le contrat serveur', async () => {
+    const retriedRide = { ...databaseRide, status: 'requested' }
+    const rpc = vi.fn().mockResolvedValue({ data: retriedRide, error: null })
+    const service = new SupabaseRideService({ client: { rpc } })
+
+    await expect(service.retryRideSearch('ride-1')).resolves.toMatchObject({ id: 'ride-1', status: 'requested' })
+    expect(rpc).toHaveBeenCalledWith('retry_ride_search', { p_ride_id: 'ride-1' })
+  })
 })
 
 describe('DemoRideService', () => {
