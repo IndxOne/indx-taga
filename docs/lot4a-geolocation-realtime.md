@@ -1,0 +1,68 @@
+# TAGA — Lot 4A : géolocalisation et suivi temps réel
+
+## Périmètre
+
+Lot 4A couvre la géolocalisation du navigateur, la conservation serveur de la
+dernière position chauffeur, le suivi Realtime Supabase et le contrat de
+cartographie `MapProvider`. Le rendu actuel est volontairement SVG : il ne
+prétend pas fournir un géocodage, un itinéraire ou un fond cartographique réel.
+
+Google Maps, Places, Routes et les clés FlutterFlow restent dans le Lot 4B.
+Aucun fournisseur temporaire n'est ajouté dans 4A.
+
+## Contrat backend
+
+La migration `005_live_driver_locations.sql` crée `driver_locations`, avec une
+ligne par course active :
+
+- `latitude`, `longitude` : coordonnées validées côté PostgreSQL ;
+- `accuracy_m`, `heading_deg`, `speed_mps` : métadonnées facultatives ;
+- `recorded_at` et `updated_at` : horodatage serveur ;
+- `ride_id` : clé primaire, donc une seule dernière position par course.
+
+`publish_driver_location(ride_id, latitude, longitude, ...)` est la seule
+écriture exposée au client authentifié. Le serveur dérive le chauffeur depuis
+`auth.uid()`, vérifie son rôle, son état actif, son rattachement à la course et
+le statut actif de celle-ci. Une position n'est lisible que par le passager ou
+le chauffeur de cette course pendant les statuts `assigned`, `arriving`,
+`arrived` et `in_progress`.
+
+La publication Realtime porte sur `rides` et `driver_locations`. Il faut
+appliquer la migration dans le projet Supabase de recette avant de tester une
+position réelle.
+
+## Contrat frontend réutilisable
+
+`geolocationService.js` masque l'API navigateur et expose :
+
+- `getCurrentPosition(options)` ;
+- `watchPosition(onSuccess, onError, options)` avec fonction d'arrêt.
+
+`driverLocationService.js` publie vers la RPC et limite les écritures à une
+position toutes les 3 secondes au maximum, en conservant uniquement la dernière
+position en attente. En mode démo, aucune écriture Supabase n'est effectuée.
+
+`rideRealtimeService.js` expose :
+
+- `getRide(rideId)` ;
+- `getDriverLocation(rideId)` ;
+- `subscribeToRide(rideId, handlers)`.
+
+React ne calcule pas de prix, n'impose pas de statut et ne choisit pas
+l'identité du chauffeur. Zustand ne sert qu'à refléter le cache UI des données
+retournées par les services.
+
+## Cartographie
+
+`MapProvider` accepte déjà le point d'extension `provider`. Le seul fournisseur
+implémenté est `svg`. Une valeur non supportée retombe explicitement sur SVG via
+`data-map-fallback="true"`. Le composant Google de 4B pourra remplacer cette
+implémentation sans modifier les écrans consommateurs.
+
+## Limites connues
+
+Le parcours chauffeur réel ne dispose pas encore d'une interface de réception
+d'offre/affectation complète : `DriverLocationTracker` reste donc inactif tant
+qu'une course réelle avec un `ride_id` et un statut actif n'est pas fournie à
+l'écran chauffeur. Ce lot prépare le contrat et le suivi ; il ne fabrique pas
+une affectation côté frontend.

@@ -1,6 +1,7 @@
-export default function MapView({ children, className = '', 'aria-label': ariaLabel = 'Carte de la zone de trajet' }) {
+export default function MapView({ children, className = '', 'aria-label': ariaLabel = 'Carte de la zone de trajet', ...attributes }) {
   return (
     <div
+      {...attributes}
       className={`relative overflow-hidden bg-[#dcebe8] ${className}`}
       role="region"
       aria-label={ariaLabel}
@@ -47,7 +48,7 @@ export default function MapView({ children, className = '', 'aria-label': ariaLa
       </svg>
 
       <div className="pointer-events-none absolute right-4 top-4 z-[1] rounded-lg bg-white/90 px-2 py-1 text-[10px] font-semibold text-gray-500 shadow-sm">
-        Abidjan · carte démo
+        Carte SVG · aperçu
       </div>
       {children}
     </div>

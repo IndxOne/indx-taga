@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
-import MapView from '../../components/MapView'
+import MapProvider from '../../components/MapProvider'
 import AmountTile from '../../components/AmountTile'
 import ToggleSwitch from '../../components/ToggleSwitch'
 import { DRIVER_NAV_ITEMS, ROUTES } from '../../navigation/routes'
@@ -54,13 +54,13 @@ export default function Online() {
         </span>
       </div>
 
-      <MapView className="absolute inset-0 z-0 h-full min-h-[700px] w-full" aria-label="Carte de disponibilité chauffeur">
+      <MapProvider className="absolute inset-0 z-0 h-full min-h-[700px] w-full" aria-label="Carte de disponibilité chauffeur">
         <div className="absolute left-1/2 top-[42%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
           <span className="absolute h-44 w-44 animate-pulse rounded-full bg-taga-green/20" />
           <span className="absolute h-28 w-28 rounded-full bg-taga-green/30" />
           <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-taga-green text-white shadow-lg"><Icon name="car" size={27} /></span>
         </div>
-      </MapView>
+      </MapProvider>
 
       <div className="absolute inset-x-0 bottom-0 z-10 max-h-[48%] overflow-y-auto rounded-t-3xl bg-white px-4 pb-2 pt-4 text-gray-900 shadow-[0_-8px_24px_rgba(10,17,40,0.18)] flex flex-col gap-3">
         <div className="rounded-2xl bg-gradient-to-br from-taga-navy via-taga-navy to-[#6a4d4d] px-4 py-3 text-white">

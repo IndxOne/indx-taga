@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore, RIDE_OPTIONS } from '../../store/useAppStore'
-import MapView from '../../components/MapView'
+import MapProvider from '../../components/MapProvider'
 import RideOptionCard from '../../components/RideOptionCard'
 import PrimaryButton from '../../components/PrimaryButton'
 import BackButton from '../../components/BackButton'
 import { ROUTES } from '../../navigation/routes'
 import ClientRideMap from '../../components/ClientRideMap'
 import { getRideService } from '../../services/rideService'
+import { getCurrentPosition } from '../../services/geolocationService'
 import { isDemoMode } from '../../services/runtimeConfig'
 
 export default function Estimate() {
@@ -28,8 +29,13 @@ export default function Estimate() {
     setIsSubmitting(true)
     setError('')
     try {
+      let pickup = { label: ride.pickupLabel }
+      if (!isDemoMode) {
+        const position = await getCurrentPosition()
+        pickup = { ...pickup, lat: position.lat, lng: position.lng }
+      }
       const createdRide = await getRideService().createRide({
-        pickup: { label: ride.pickupLabel },
+        pickup,
         destination: { label: ride.dropoffLabel },
         ride_type: selectedOption.id,
       })
@@ -53,9 +59,9 @@ export default function Estimate() {
   return (
     <div className="relative flex-1 flex flex-col">
       <div className="relative">
-        <MapView className="h-52 shrink-0" aria-label="Carte de l’itinéraire estimé">
+        <MapProvider className="h-52 shrink-0" aria-label="Carte de l’itinéraire estimé">
           <ClientRideMap phase="estimate" />
-        </MapView>
+        </MapProvider>
         <div className="absolute left-4 top-4 z-10">
           <BackButton to={ROUTES.clientHome} />
         </div>

@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
-import MapView from '../../components/MapView'
+import MapProvider from '../../components/MapProvider'
 import PrimaryButton from '../../components/PrimaryButton'
 import DriverRideMap from '../../components/DriverRideMap'
+import DriverLocationTracker from '../../components/DriverLocationTracker'
 
 export default function RideInProgress() {
   const navigate = useNavigate()
   const ride = useAppStore((state) => state.ride)
+  const rideStatus = useAppStore((state) => state.rideStatus)
   const setRideStatus = useAppStore((state) => state.setRideStatus)
   const creditRideEarning = useAppStore((state) => state.creditRideEarning)
   const [showEmergency, setShowEmergency] = useState(false)
@@ -25,14 +27,15 @@ export default function RideInProgress() {
         <div className="flex items-center gap-3"><span className="w-9 h-9 rounded-lg bg-taga-mango flex items-center justify-center">→</span><div><p className="font-bold">1.4 km</p><p className="text-xs text-white/60">Tourner à droite — Bd VGE</p></div></div>
         <div className="text-right"><p className="text-xs text-white/60">TON GAIN</p><p className="font-bold">{new Intl.NumberFormat('fr-FR').format(ride.driverEarning)} F</p></div>
       </div>
-      <MapView className="flex-1" aria-label="Carte de la course en cours">
+      <MapProvider className="flex-1" aria-label="Carte de la course en cours">
         <DriverRideMap phase="in-progress" />
         <div className="absolute right-4 top-5 z-[3] rounded-xl border-2 border-taga-mango bg-white px-3 py-2 text-right shadow-md">
           <p className="text-[9px] uppercase text-gray-400">Ton gain</p>
           <p className="font-bold text-taga-navy">{new Intl.NumberFormat('fr-FR').format(ride.driverEarning)} F</p>
         </div>
-      </MapView>
+      </MapProvider>
       <div className="bg-white px-5 py-5 flex flex-col gap-4">
+        <DriverLocationTracker rideId={ride.id} rideStatus={rideStatus} />
         <div className="flex items-center justify-between text-[10px] font-semibold text-gray-500">
           <span className="uppercase tracking-wide">Vers Plateau</span>
           <span>9,6 / {ride.distanceKm} km</span>

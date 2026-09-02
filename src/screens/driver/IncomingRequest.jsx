@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
-import MapView from '../../components/MapView'
+import MapProvider from '../../components/MapProvider'
 import PrimaryButton from '../../components/PrimaryButton'
 import BackButton from '../../components/BackButton'
 import DriverRideMap from '../../components/DriverRideMap'
@@ -30,11 +30,11 @@ export default function IncomingRequest() {
   return (
     <div className="flex-1 flex flex-col">
       <div className="relative">
-        <MapView className="h-56 shrink-0" aria-label="Carte de la demande chauffeur">
+        <MapProvider className="h-56 shrink-0" aria-label="Carte de la demande chauffeur">
           <div className="absolute inset-0 z-0 bg-taga-navy/55" />
           <p className="absolute left-0 right-0 top-5 z-[3] text-center text-[10px] font-bold tracking-[0.18em] text-white/70">NOUVELLE DEMANDE</p>
           <DriverRideMap phase="request" />
-        </MapView>
+        </MapProvider>
         <div className="absolute left-4 top-4 z-10">
           <BackButton to={ROUTES.driverOnline} />
         </div>

@@ -78,6 +78,12 @@ export const useAppStore = create((set) => ({
 
   ride: MOCK_RIDE,
   setRide: (ride) => set({ ride }),
+  updateRide: (patch) => set((state) => ({
+    ride: {
+      ...state.ride,
+      ...(typeof patch === 'function' ? patch(state.ride) : patch),
+    },
+  })),
   driver: MOCK_DRIVER,
 
   selectedRideOptionId: 'go',

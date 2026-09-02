@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
-import MapView from '../../components/MapView'
+import MapProvider from '../../components/MapProvider'
 import PrimaryButton from '../../components/PrimaryButton'
 import BackButton from '../../components/BackButton'
 import { ROUTES } from '../../navigation/routes'
 import DriverRideMap from '../../components/DriverRideMap'
 import Icon from '../../components/Icon'
+import DriverLocationTracker from '../../components/DriverLocationTracker'
 
 export default function Navigation() {
   const navigate = useNavigate()
@@ -32,10 +33,11 @@ export default function Navigation() {
         <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-taga-mango"><Icon name="arrowUp" size={18} /></span>
         <div><p className="font-bold">200 m</p><p className="text-xs text-white/60">Tout droit sur Bd Latrille</p></div>
       </div>
-      <MapView className="flex-1" aria-label="Navigation vers le passager">
+      <MapProvider className="flex-1" aria-label="Navigation vers le passager">
         <DriverRideMap phase="navigation" />
-      </MapView>
+      </MapProvider>
       <div className="bg-white px-5 py-5 flex flex-col gap-3">
+        <DriverLocationTracker rideId={ride.id} rideStatus={rideStatus} />
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-taga-mango text-sm font-bold text-white">AK</div>
           <div className="flex-1 text-sm">

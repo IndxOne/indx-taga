@@ -1,0 +1,94 @@
+import { describe, expect, it, vi } from 'vitest'
+import { SupabaseRideRealtimeService } from './rideRealtimeService'
+
+const rideRow = {
+  id: 'ride-1',
+  passenger_id: 'passenger-1',
+  driver_id: 'driver-1',
+  pickup_label: 'Cocody',
+  pickup_lat: 5.34,
+  pickup_lng: -4.01,
+  destination_label: 'Plateau',
+  destination_lat: 5.32,
+  destination_lng: -4.02,
+  ride_type: 'go',
+  scheduled_at: null,
+  status: 'assigned',
+  estimated_price: null,
+  assigned_at: '2026-09-02T10:00:00.000Z',
+  dispatch_deadline_at: null,
+  created_at: '2026-09-02T09:59:00.000Z',
+  updated_at: '2026-09-02T10:00:00.000Z',
+}
+
+function queryChain(result) {
+  const query = {
+    select: vi.fn(() => query),
+    eq: vi.fn(() => query),
+    maybeSingle: vi.fn(() => Promise.resolve(result)),
+  }
+  return query
+}
+
+describe('SupabaseRideRealtimeService', () => {
+  it('lit la course et la dernière position via les tables protégées', async () => {
+    const rideQuery = queryChain({ data: rideRow, error: null })
+    const locationQuery = queryChain({
+      data: {
+        ride_id: 'ride-1', driver_id: 'driver-1', latitude: 5.35, longitude: -4.02,
+        accuracy_m: 8, heading_deg: null, speed_mps: 5, recorded_at: '2026-09-02T10:01:00.000Z', updated_at: '2026-09-02T10:01:00.000Z',
+      },
+      error: null,
+    })
+    const client = {
+      from: vi.fn()
+        .mockReturnValueOnce(rideQuery)
+        .mockReturnValueOnce(locationQuery),
+    }
+    const service = new SupabaseRideRealtimeService({ client })
+
+    await expect(service.getRide('ride-1')).resolves.toMatchObject({ id: 'ride-1', status: 'assigned', driverId: 'driver-1' })
+    await expect(service.getDriverLocation('ride-1')).resolves.toMatchObject({ rideId: 'ride-1', lat: 5.35, lng: -4.02 })
+    expect(rideQuery.eq).toHaveBeenCalledWith('id', 'ride-1')
+    expect(locationQuery.eq).toHaveBeenCalledWith('ride_id', 'ride-1')
+  })
+
+  it('abonne le passager aux changements de course et de position', async () => {
+    const handlers = []
+    const unsubscribe = vi.fn()
+    const channel = {
+      on: vi.fn((_event, filter, handler) => {
+        handlers.push({ filter, handler })
+        return channel
+      }),
+      subscribe: vi.fn((callback) => {
+        callback('SUBSCRIBED')
+        return channel
+      }),
+      unsubscribe,
+    }
+    const client = { channel: vi.fn(() => channel) }
+    const onRideChange = vi.fn()
+    const onDriverLocationChange = vi.fn()
+    const service = new SupabaseRideRealtimeService({ client })
+
+    const stop = service.subscribeToRide('ride-1', { onRideChange, onDriverLocationChange })
+    await Promise.resolve()
+    expect(client.channel).toHaveBeenCalledWith('taga:ride:ride-1')
+    expect(handlers[0].filter).toMatchObject({ table: 'rides', event: 'UPDATE', filter: 'id=eq.ride-1' })
+    expect(handlers[1].filter).toMatchObject({ table: 'driver_locations', event: '*', filter: 'ride_id=eq.ride-1' })
+
+    handlers[0].handler({ new: rideRow })
+    handlers[1].handler({ eventType: 'UPDATE', new: { ride_id: 'ride-1', driver_id: 'driver-1', latitude: 5.3, longitude: -4 } })
+    expect(onRideChange).toHaveBeenCalledWith(expect.objectContaining({ status: 'assigned' }))
+    expect(onDriverLocationChange).toHaveBeenCalledWith(expect.objectContaining({ lat: 5.3, lng: -4 }))
+
+    stop()
+    expect(unsubscribe).toHaveBeenCalled()
+  })
+
+  it('refuse un identifiant pouvant altérer le filtre Realtime', () => {
+    const service = new SupabaseRideRealtimeService({ client: {} })
+    expect(() => service.subscribeToRide('ride-1,driver_id=eq.driver-2')).toThrow('identifiant')
+  })
+})

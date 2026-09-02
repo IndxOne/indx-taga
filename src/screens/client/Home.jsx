@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import MapView from '../../components/MapView'
+import MapProvider from '../../components/MapProvider'
 import BottomNavBar from '../../components/BottomNavBar'
 import Icon from '../../components/Icon'
 
@@ -14,7 +14,7 @@ export default function Home() {
 
   return (
     <div className="flex-1 flex flex-col">
-      <MapView className="h-64 shrink-0" aria-label="Carte de votre position actuelle">
+      <MapProvider className="h-64 shrink-0" aria-label="Carte de votre position actuelle">
         <div className="absolute left-4 right-4 top-4 z-10 flex items-center gap-2 rounded-xl bg-white/95 px-3 py-2 shadow-md">
           <span className="h-2 w-2 rounded-full bg-taga-green shadow-[0_0_0_4px_rgba(0,168,120,0.15)]" />
           <div>
@@ -28,7 +28,7 @@ export default function Home() {
           <circle cx="176" cy="320" r="7" fill="#0005d6" stroke="#ffffff" strokeWidth="4" />
           <circle cx="300" cy="92" r="7" fill="#00a878" stroke="#ffffff" strokeWidth="4" />
         </svg>
-      </MapView>
+      </MapProvider>
 
       <div className="flex-1 bg-white -mt-6 rounded-t-3xl px-5 py-6 flex flex-col gap-5">
         <div className="mx-auto -mt-2 h-1 w-10 rounded-full bg-gray-200" aria-hidden="true" />
