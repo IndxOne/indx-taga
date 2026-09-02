@@ -6,6 +6,7 @@ import DriverInfoCard from '../../components/DriverInfoCard'
 import PrimaryButton from '../../components/PrimaryButton'
 import ClientRideMap from '../../components/ClientRideMap'
 import { getDispatchService } from '../../services/dispatchService'
+import { getRideService } from '../../services/rideService'
 import { getDriverLocationRemainingMs, getRideRealtimeService } from '../../services/rideRealtimeService'
 import { isDemoMode } from '../../services/runtimeConfig'
 
