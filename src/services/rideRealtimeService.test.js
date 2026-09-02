@@ -118,6 +118,47 @@ describe('SupabaseRideRealtimeService', () => {
     stop()
   })
 
+  it('efface la position quand la course devient terminée', async () => {
+    const handlers = []
+    const channel = {
+      on: vi.fn((_event, filter, handler) => {
+        handlers.push({ filter, handler })
+        return channel
+      }),
+      subscribe: vi.fn(() => channel),
+      unsubscribe: vi.fn(),
+    }
+    const service = new SupabaseRideRealtimeService({ client: { channel: vi.fn(() => channel) } })
+    const onDriverLocationChange = vi.fn()
+    const stop = service.subscribeToRide('ride-1', {
+      onDriverLocationChange,
+      now: () => Date.parse('2026-09-02T10:02:01.000Z'),
+    })
+    await Promise.resolve()
+
+    handlers[0].handler({ new: { ...rideRow, status: 'completed' } })
+
+    expect(onDriverLocationChange).toHaveBeenCalledWith(null)
+    stop()
+  })
+
+  it('ne renvoie pas une position obsolète lors de la lecture initiale', async () => {
+    const locationQuery = queryChain({
+      data: {
+        ride_id: 'ride-1', driver_id: 'driver-1', latitude: 5.35, longitude: -4.02,
+        recorded_at: '2026-09-02T09:59:00.000Z', updated_at: '2026-09-02T09:59:00.000Z',
+      },
+      error: null,
+    })
+    const service = new SupabaseRideRealtimeService({
+      client: { from: vi.fn(() => locationQuery) },
+    })
+
+    await expect(service.getDriverLocation('ride-1', {
+      now: Date.parse('2026-09-02T10:02:00.000Z'),
+    })).resolves.toBeNull()
+  })
+
   it('refuse un identifiant pouvant altérer le filtre Realtime', () => {
     const service = new SupabaseRideRealtimeService({ client: {} })
     expect(() => service.subscribeToRide('ride-1,driver_id=eq.driver-2')).toThrow('identifiant')
