@@ -76,7 +76,9 @@ export default function ActiveRide() {
   const [isRetrying, setIsRetrying] = useState(false)
   const [realtimeError, setRealtimeError] = useState('')
   const [driverLocation, setDriverLocation] = useState(null)
-  const showDriverDetails = isDemoMode && DRIVER_ASSIGNED_STATUSES.has(rideStatus)
+  const [isRestoringRide, setIsRestoringRide] = useState(!isDemoMode)
+  const displayedRideStatus = isDemoMode ? rideStatus : ride?.status ?? rideStatus
+  const showDriverDetails = isDemoMode && DRIVER_ASSIGNED_STATUSES.has(displayedRideStatus)
 
   useEffect(() => {
     if (!driverLocation) return undefined
@@ -138,9 +140,10 @@ export default function ActiveRide() {
   }, [ride?.dispatchDeadlineAt, ride?.id, rideStatus, setRideStatus, updateRide])
 
   useEffect(() => {
-    if (isDemoMode || !ride?.id) return undefined
+    if (isDemoMode) return undefined
 
     let cancelled = false
+    let unsubscribe
     const realtime = getRideRealtimeService()
     const applyRide = (serverRide) => {
       if (cancelled || !serverRide) return
@@ -148,35 +151,44 @@ export default function ActiveRide() {
       setRideStatus(serverRide.status)
     }
 
-    realtime.getRide(ride.id)
-      .then(applyRide)
-      .catch((error) => {
+    const restoreActiveRide = async () => {
+      try {
+        const activeRide = await realtime.getActiveRide()
+        if (cancelled) return
+
+        if (!activeRide) {
+          setIsRestoringRide(false)
+          navigate('/client/home', { replace: true })
+          return
+        }
+
+        applyRide(activeRide)
+        const location = await realtime.getDriverLocation(activeRide.id)
+        if (cancelled) return
+        setDriverLocation(location)
+
+        unsubscribe = realtime.subscribeToRide(activeRide.id, {
+          onRideChange: applyRide,
+          onDriverLocationChange: (nextLocation) => {
+            if (!cancelled) setDriverLocation(nextLocation || null)
+          },
+          onError: (error) => {
+            if (!cancelled) setRealtimeError(error.message || 'La synchronisation temps réel est indisponible.')
+          },
+        })
+      } catch (error) {
         if (!cancelled) setRealtimeError(error.message || 'La course n’a pas pu être synchronisée.')
-      })
+      } finally {
+        if (!cancelled) setIsRestoringRide(false)
+      }
+    }
 
-    realtime.getDriverLocation(ride.id)
-      .then((location) => {
-        if (!cancelled) setDriverLocation(location)
-      })
-      .catch((error) => {
-        if (!cancelled) setRealtimeError(error.message || 'La position du chauffeur n’a pas pu être chargée.')
-      })
-
-    const unsubscribe = realtime.subscribeToRide(ride.id, {
-      onRideChange: applyRide,
-      onDriverLocationChange: (location) => {
-        if (!cancelled) setDriverLocation(location || null)
-      },
-      onError: (error) => {
-        if (!cancelled) setRealtimeError(error.message || 'La synchronisation temps réel est indisponible.')
-      },
-    })
-
+    void restoreActiveRide()
     return () => {
       cancelled = true
       unsubscribe?.()
     }
-  }, [ride?.id, setRideStatus, updateRide])
+  }, [navigate, setRideStatus, updateRide])
 
   const advance = () => {
     const next = NEXT_STATUS[rideStatus]
@@ -216,12 +228,31 @@ export default function ActiveRide() {
     }
   }
 
+  if (!isDemoMode && isRestoringRide) {
+    return (
+      <div className="flex min-h-full items-center justify-center bg-white px-5 py-10 text-center text-sm text-gray-600" role="status">
+        Récupération de votre course…
+      </div>
+    )
+  }
+
+  if (!isDemoMode && !ride?.id && realtimeError) {
+    return (
+      <div className="flex min-h-full flex-col items-center justify-center gap-4 bg-white px-5 py-10 text-center">
+        <p className="max-w-sm text-sm leading-5 text-red-600" role="alert">{realtimeError}</p>
+        <PrimaryButton variant="navy" onClick={() => navigate('/client/home', { replace: true })}>
+          Retour à l’accueil
+        </PrimaryButton>
+      </div>
+    )
+  }
+
   return (
     <div className="flex-1 flex flex-col">
       <MapProvider className="h-72 shrink-0" aria-label="Carte de la course active">
         <ClientRideMap phase="active" showDriver={showDriverDetails} />
         <div className="absolute bottom-4 left-4 right-4 z-[2] rounded-xl bg-taga-green px-3 py-2 text-center text-sm font-semibold text-white shadow-md">
-          ● {STATUS_LABEL[rideStatus] ?? STATUS_LABEL.searching}
+          ● {STATUS_LABEL[displayedRideStatus] ?? STATUS_LABEL.searching}
         </div>
       </MapProvider>
 
@@ -250,7 +281,7 @@ export default function ActiveRide() {
           )
         ) : (
           <div className="rounded-xl bg-taga-blue/5 px-4 py-3 text-sm leading-5 text-gray-600" role="status">
-            <p>{REAL_STATUS_COPY[rideStatus] ?? 'Synchronisation de votre course en cours.'}</p>
+            <p>{REAL_STATUS_COPY[displayedRideStatus] ?? 'Synchronisation de votre course en cours.'}</p>
             {driverLocation && (
               <p className="mt-1 text-xs text-taga-blue">
                 Position chauffeur mise à jour{driverLocation.recordedAt ? ` · ${new Date(driverLocation.recordedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}.
@@ -263,7 +294,7 @@ export default function ActiveRide() {
         {actionError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-center text-xs text-red-600">{actionError}</p>}
         {realtimeError && <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-700">{realtimeError}</p>}
 
-        {SEARCH_STATUSES.has(rideStatus) && (
+        {SEARCH_STATUSES.has(displayedRideStatus) && (
           <button
             type="button"
             onClick={cancelSearch}
@@ -274,7 +305,7 @@ export default function ActiveRide() {
           </button>
         )}
 
-        {!isDemoMode && rideStatus === 'no_driver' && <div className="mt-auto">
+        {!isDemoMode && displayedRideStatus === 'no_driver' && <div className="mt-auto">
           <PrimaryButton variant="green" onClick={retrySearch} disabled={isRetrying}>
             {isRetrying ? 'Relance en cours…' : 'Réessayer'}
           </PrimaryButton>

@@ -59,8 +59,17 @@ position en attente. En mode démo, aucune écriture Supabase n'est effectuée.
 `rideRealtimeService.js` expose :
 
 - `getRide(rideId)` ;
+- `getActiveRide()` pour restaurer, après un refresh, la dernière course du
+  passager dans un statut encore actif ;
 - `getDriverLocation(rideId)` ;
 - `subscribeToRide(rideId, handlers)`.
+
+À l’ouverture de l’écran de course active, le client appelle d’abord
+`getActiveRide()`. Le résultat serveur devient la source du `ride_id`, puis le
+client charge la dernière position et s’abonne au canal Realtime de cette
+course. Une course terminée, annulée, sans chauffeur ou absente redirige vers
+l’accueil ; le bouton d’annulation est rendu uniquement pour `requested` et
+`searching`, selon le statut reçu du serveur.
 
 React ne calcule pas de prix, n'impose pas de statut et ne choisit pas
 l'identité du chauffeur. Zustand ne sert qu'à refléter le cache UI des données

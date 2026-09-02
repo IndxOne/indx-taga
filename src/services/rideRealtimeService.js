@@ -2,8 +2,10 @@ import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
 
 const ACTIVE_RIDE_STATUSES = new Set(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'completed', 'cancelled', 'no_driver'])
+const RESTORABLE_RIDE_STATUSES = Object.freeze(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress'])
 const LOCATION_VISIBLE_STATUSES = new Set(['assigned', 'arriving', 'arrived', 'in_progress'])
 export const DRIVER_LOCATION_MAX_AGE_MS = 60_000
+const RIDE_COLUMNS = 'id, passenger_id, driver_id, pickup_label, pickup_lat, pickup_lng, destination_label, destination_lat, destination_lng, ride_type, scheduled_at, status, estimated_price, assigned_at, dispatch_deadline_at, created_at, updated_at'
 
 function realtimeError(message, code = 'realtime_error') {
   const error = new Error(message)
@@ -88,8 +90,20 @@ export class SupabaseRideRealtimeService {
     assertRideId(rideId)
     const { data, error } = await (await this.getClient())
       .from('rides')
-      .select('id, passenger_id, driver_id, pickup_label, pickup_lat, pickup_lng, destination_label, destination_lat, destination_lng, ride_type, scheduled_at, status, estimated_price, assigned_at, dispatch_deadline_at, created_at, updated_at')
+      .select(RIDE_COLUMNS)
       .eq('id', rideId)
+      .maybeSingle()
+    if (error) throw error
+    return data ? normalizeRide(data) : null
+  }
+
+  async getActiveRide() {
+    const { data, error } = await (await this.getClient())
+      .from('rides')
+      .select(RIDE_COLUMNS)
+      .in('status', RESTORABLE_RIDE_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
     if (error) throw error
     return data ? normalizeRide(data) : null
@@ -189,6 +203,10 @@ export class SupabaseRideRealtimeService {
 
 export class DemoRideRealtimeService {
   async getRide() {
+    return null
+  }
+
+  async getActiveRide() {
     return null
   }
 
