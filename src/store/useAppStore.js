@@ -77,6 +77,7 @@ export const useAppStore = create((set) => ({
   clearOtpChallenge: () => set({ otpChallengeId: '', otpMaskedPhone: '', otpExpiresAt: 0 }),
 
   ride: MOCK_RIDE,
+  setRide: (ride) => set({ ride }),
   driver: MOCK_DRIVER,
 
   selectedRideOptionId: 'go',

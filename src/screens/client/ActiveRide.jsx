@@ -5,8 +5,10 @@ import MapView from '../../components/MapView'
 import DriverInfoCard from '../../components/DriverInfoCard'
 import PrimaryButton from '../../components/PrimaryButton'
 import ClientRideMap from '../../components/ClientRideMap'
+import { isDemoMode } from '../../services/runtimeConfig'
 
 const STATUS_LABEL = {
+  requested: 'Demande enregistrée',
   searching: "Recherche d'un chauffeur...",
   driver_en_route: 'Chauffeur en approche · 3 min',
   arrived: 'Chauffeur arrivé',
@@ -26,6 +28,7 @@ export default function ActiveRide() {
   const rideStatus = useAppStore((state) => state.rideStatus)
   const setRideStatus = useAppStore((state) => state.setRideStatus)
   const [contactNotice, setContactNotice] = useState('')
+  const showDriverDetails = isDemoMode || ['assigned', 'arriving', 'arrived', 'in_progress'].includes(rideStatus)
 
   const advance = () => {
     const next = NEXT_STATUS[rideStatus]
@@ -44,25 +47,33 @@ export default function ActiveRide() {
       </MapView>
 
       <div className="flex-1 bg-white -mt-6 rounded-t-3xl px-5 py-6 flex flex-col gap-4">
-        <DriverInfoCard
-          driver={driver}
-          onMessage={() => setContactNotice('Message simulé envoyé au chauffeur.')}
-          onCall={() => setContactNotice('Appel simulé vers le chauffeur.')}
-        />
+        {showDriverDetails && (
+          <DriverInfoCard
+            driver={driver}
+            onMessage={() => setContactNotice('Message simulé envoyé au chauffeur.')}
+            onCall={() => setContactNotice('Appel simulé vers le chauffeur.')}
+          />
+        )}
 
         {contactNotice && <p role="status" className="rounded-lg bg-taga-blue/5 px-3 py-2 text-center text-xs text-taga-blue">{contactNotice}</p>}
 
-        <div className="text-sm text-gray-600 flex flex-col gap-1">
-          <p><span className="text-taga-green font-semibold">●</span> Commande acceptée · {ride.pickupLabel}</p>
-          <p className="text-xs text-gray-400">En approche · 3 min · {ride.pickupDetail}</p>
-          <p><span className="text-taga-navy font-semibold">■</span> Dépose · {ride.dropoffLabel}</p>
-        </div>
+        {isDemoMode ? (
+          <div className="text-sm text-gray-600 flex flex-col gap-1">
+            <p><span className="text-taga-green font-semibold">●</span> Commande acceptée · {ride.pickupLabel}</p>
+            <p className="text-xs text-gray-400">En approche · 3 min · {ride.pickupDetail}</p>
+            <p><span className="text-taga-navy font-semibold">■</span> Dépose · {ride.dropoffLabel}</p>
+          </div>
+        ) : (
+          <div className="rounded-xl bg-taga-blue/5 px-4 py-3 text-sm leading-5 text-gray-600" role="status">
+            Votre demande est enregistrée. La recherche d’un chauffeur sera activée dans un prochain lot.
+          </div>
+        )}
 
-        <div className="mt-auto">
+        {isDemoMode && <div className="mt-auto">
           <PrimaryButton variant="green" onClick={advance}>
             Simuler arrivée →
           </PrimaryButton>
-        </div>
+        </div>}
       </div>
     </div>
   )

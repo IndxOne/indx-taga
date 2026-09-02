@@ -1,6 +1,6 @@
 import Icon from './Icon'
 
-export default function RideOptionCard({ name, badge, description, price, originalPrice, selected, onSelect }) {
+export default function RideOptionCard({ name, badge, description, price, originalPrice, selected, onSelect, showPrice = true }) {
   const formatted = (n) => new Intl.NumberFormat('fr-FR').format(n)
   return (
     <button
@@ -24,8 +24,14 @@ export default function RideOptionCard({ name, badge, description, price, origin
         <p className="text-sm text-gray-500">{description}</p>
       </div>
       <div className="text-right shrink-0">
-        {originalPrice && <p className="text-xs text-gray-400 line-through">{formatted(originalPrice)} F</p>}
-        <p className="font-bold">{formatted(price)} F</p>
+        {showPrice ? (
+          <>
+            {originalPrice && <p className="text-xs text-gray-400 line-through">{formatted(originalPrice)} F</p>}
+            <p className="font-bold">{formatted(price)} F</p>
+          </>
+        ) : (
+          <p className="max-w-20 text-[10px] leading-4 text-gray-400">Tarif à confirmer</p>
+        )}
       </div>
     </button>
   )

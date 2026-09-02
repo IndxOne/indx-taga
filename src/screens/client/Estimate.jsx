@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore, RIDE_OPTIONS } from '../../store/useAppStore'
 import MapView from '../../components/MapView'
@@ -6,20 +7,47 @@ import PrimaryButton from '../../components/PrimaryButton'
 import BackButton from '../../components/BackButton'
 import { ROUTES } from '../../navigation/routes'
 import ClientRideMap from '../../components/ClientRideMap'
+import { getRideService } from '../../services/rideService'
+import { isDemoMode } from '../../services/runtimeConfig'
 
 export default function Estimate() {
   const navigate = useNavigate()
   const ride = useAppStore((state) => state.ride)
   const selectedId = useAppStore((state) => state.selectedRideOptionId)
   const setSelectedId = useAppStore((state) => state.setSelectedRideOptionId)
+  const setRide = useAppStore((state) => state.setRide)
   const setRideStatus = useAppStore((state) => state.setRideStatus)
   const paymentMethods = useAppStore((state) => state.paymentMethods)
   const selectedOption = RIDE_OPTIONS.find((option) => option.id === selectedId)
   const defaultPayment = paymentMethods.find((method) => method.isDefault) ?? paymentMethods[0]
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleOrder = () => {
-    setRideStatus('searching')
-    navigate('/client/active-ride')
+  const handleOrder = async () => {
+    if (!selectedOption || isSubmitting) return
+    setIsSubmitting(true)
+    setError('')
+    try {
+      const createdRide = await getRideService().createRide({
+        pickup: { label: ride.pickupLabel },
+        destination: { label: ride.dropoffLabel },
+        ride_type: selectedOption.id,
+      })
+      setRide({
+        ...ride,
+        id: createdRide.id,
+        status: createdRide.status,
+        estimatedPrice: createdRide.estimatedPrice,
+      })
+      // Le mode démo conserve son scénario visuel. En mode réel, le statut
+      // affiché provient de la réponse RPC et reste requested pour ce lot.
+      setRideStatus(isDemoMode ? 'searching' : createdRide.status)
+      navigate('/client/active-ride')
+    } catch (orderError) {
+      setError(orderError.message || 'La course n’a pas pu être créée.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -45,6 +73,7 @@ export default function Estimate() {
             <RideOptionCard
               key={option.id}
               {...option}
+              showPrice={isDemoMode}
               selected={option.id === selectedId}
               onSelect={() => setSelectedId(option.id)}
             />
@@ -67,10 +96,11 @@ export default function Estimate() {
         )}
 
         <div className="mt-auto pt-2">
-          <PrimaryButton onClick={handleOrder} disabled={!selectedOption}>
-            Commander · {new Intl.NumberFormat('fr-FR').format(selectedOption?.price ?? 0)} F CFA
+          <PrimaryButton onClick={handleOrder} disabled={!selectedOption || isSubmitting}>
+            {isSubmitting ? 'Création en cours…' : isDemoMode ? `Commander · ${new Intl.NumberFormat('fr-FR').format(selectedOption?.price ?? 0)} F CFA` : 'Demander cette course'}
           </PrimaryButton>
         </div>
+        {error && <p role="alert" className="text-center text-xs text-red-500">{error}</p>}
       </div>
     </div>
   )
