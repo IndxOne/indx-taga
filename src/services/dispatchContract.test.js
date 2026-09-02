@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const migration = readFileSync(resolve(process.cwd(), 'supabase/migrations/003_dispatch.sql'), 'utf8')
+const compositeFix = readFileSync(resolve(process.cwd(), 'supabase/migrations/004_dispatch_composite_fix.sql'), 'utf8')
 
 describe('contrat backend Dispatch — Lot 3', () => {
   it('définit la disponibilité et les prérequis serveur', () => {
@@ -43,5 +44,11 @@ describe('contrat backend Dispatch — Lot 3', () => {
     expect(migration).toContain('alter table public.ride_dispatch_offers enable row level security')
     expect(migration).not.toContain('grant insert on public.ride_dispatch_offers')
     expect(migration).not.toContain('grant update on public.ride_dispatch_offers')
+  })
+
+  it('ignore le retour composite de l’allocation dans le correctif SQL', () => {
+    expect(compositeFix).toContain('perform public.create_next_ride_dispatch_offer(p_ride_id)')
+    expect(compositeFix).not.toContain('into ignored_offer')
+    expect(compositeFix).toContain('create or replace function public.request_ride_dispatch(p_ride_id uuid)')
   })
 })
