@@ -1,3 +1,5 @@
+import Icon from './Icon'
+
 const PHASES = {
   estimate: {
     pickup: { left: '28%', top: '68%' },
@@ -31,7 +33,7 @@ function Marker({ type, position, label }) {
   )
 }
 
-export default function ClientRideMap({ phase = 'estimate' }) {
+export default function ClientRideMap({ phase = 'estimate', showDriver = false }) {
   const config = PHASES[phase] ?? PHASES.estimate
   const end = phase === 'active' ? 'M120 245 C160 214 198 178 244 140 S305 83 336 58' : 'M120 245 C164 210 208 178 250 142 S305 83 320 58'
 
@@ -46,9 +48,8 @@ export default function ClientRideMap({ phase = 'estimate' }) {
         <p className="text-xs font-semibold text-taga-navy">Cocody, Riviera 3 <span className="text-gray-300">→</span> Plateau, Imm. CAISTAB</p>
       </div>
       <Marker type="pickup" position={config.pickup} label="Point de prise en charge" />
-      {config.driver && <Marker type="driver" position={config.driver} label="Chauffeur" />}
+      {config.driver && showDriver && <Marker type="driver" position={config.driver} label="Chauffeur" />}
       <Marker type="dropoff" position={config.dropoff} label="Destination" />
     </>
   )
 }
-import Icon from './Icon'

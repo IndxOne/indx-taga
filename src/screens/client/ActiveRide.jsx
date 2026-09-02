@@ -40,6 +40,7 @@ const REAL_STATUS_COPY = {
 }
 
 const SEARCH_STATUSES = new Set(['requested', 'searching'])
+const DRIVER_ASSIGNED_STATUSES = new Set(['assigned', 'arriving', 'driver_en_route', 'arrived', 'in_progress', 'completed'])
 
 function mapRealtimeRideToStore(backendRide) {
   return {
@@ -75,7 +76,7 @@ export default function ActiveRide() {
   const [isRetrying, setIsRetrying] = useState(false)
   const [realtimeError, setRealtimeError] = useState('')
   const [driverLocation, setDriverLocation] = useState(null)
-  const showDriverDetails = isDemoMode
+  const showDriverDetails = isDemoMode && DRIVER_ASSIGNED_STATUSES.has(rideStatus)
 
   useEffect(() => {
     if (!driverLocation) return undefined
@@ -218,7 +219,7 @@ export default function ActiveRide() {
   return (
     <div className="flex-1 flex flex-col">
       <MapProvider className="h-72 shrink-0" aria-label="Carte de la course active">
-        <ClientRideMap phase="active" />
+        <ClientRideMap phase="active" showDriver={showDriverDetails} />
         <div className="absolute bottom-4 left-4 right-4 z-[2] rounded-xl bg-taga-green px-3 py-2 text-center text-sm font-semibold text-white shadow-md">
           ● {STATUS_LABEL[rideStatus] ?? STATUS_LABEL.searching}
         </div>
@@ -236,11 +237,17 @@ export default function ActiveRide() {
         {contactNotice && <p role="status" className="rounded-lg bg-taga-blue/5 px-3 py-2 text-center text-xs text-taga-blue">{contactNotice}</p>}
 
         {isDemoMode ? (
-          <div className="text-sm text-gray-600 flex flex-col gap-1">
-            <p><span className="text-taga-green font-semibold">●</span> Commande acceptée · {ride.pickupLabel}</p>
-            <p className="text-xs text-gray-400">En approche · 3 min · {ride.pickupDetail}</p>
-            <p><span className="text-taga-navy font-semibold">■</span> Dépose · {ride.dropoffLabel}</p>
-          </div>
+          showDriverDetails ? (
+            <div className="text-sm text-gray-600 flex flex-col gap-1">
+              <p><span className="text-taga-green font-semibold">●</span> Commande acceptée · {ride.pickupLabel}</p>
+              <p className="text-xs text-gray-400">En approche · 3 min · {ride.pickupDetail}</p>
+              <p><span className="text-taga-navy font-semibold">■</span> Dépose · {ride.dropoffLabel}</p>
+            </div>
+          ) : (
+            <div className="rounded-xl bg-taga-blue/5 px-4 py-3 text-sm text-gray-600" role="status">
+              Recherche d’un chauffeur en cours.
+            </div>
+          )
         ) : (
           <div className="rounded-xl bg-taga-blue/5 px-4 py-3 text-sm leading-5 text-gray-600" role="status">
             <p>{REAL_STATUS_COPY[rideStatus] ?? 'Synchronisation de votre course en cours.'}</p>
