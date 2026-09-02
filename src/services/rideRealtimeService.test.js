@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { SupabaseRideRealtimeService } from './rideRealtimeService'
+import { getDriverLocationRemainingMs, SupabaseRideRealtimeService } from './rideRealtimeService'
 
 const rideRow = {
   id: 'ride-1',
@@ -32,6 +32,12 @@ function queryChain(result) {
 }
 
 describe('SupabaseRideRealtimeService', () => {
+  it('calcule le délai avant de retirer une position', () => {
+    const location = { recordedAt: '2026-09-02T10:01:30.000Z' }
+    expect(getDriverLocationRemainingMs(location, { now: Date.parse('2026-09-02T10:01:45.000Z') })).toBe(45_000)
+    expect(getDriverLocationRemainingMs(location, { now: Date.parse('2026-09-02T10:02:31.000Z') })).toBe(0)
+  })
+
   it('lit la course et la dernière position via les tables protégées', async () => {
     const rideQuery = queryChain({ data: rideRow, error: null })
     const locationQuery = queryChain({

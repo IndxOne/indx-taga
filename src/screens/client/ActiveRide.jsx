@@ -6,7 +6,7 @@ import DriverInfoCard from '../../components/DriverInfoCard'
 import PrimaryButton from '../../components/PrimaryButton'
 import ClientRideMap from '../../components/ClientRideMap'
 import { getDispatchService } from '../../services/dispatchService'
-import { getRideRealtimeService } from '../../services/rideRealtimeService'
+import { getDriverLocationRemainingMs, getRideRealtimeService } from '../../services/rideRealtimeService'
 import { isDemoMode } from '../../services/runtimeConfig'
 
 const STATUS_LABEL = {
@@ -70,6 +70,12 @@ export default function ActiveRide() {
   const [realtimeError, setRealtimeError] = useState('')
   const [driverLocation, setDriverLocation] = useState(null)
   const showDriverDetails = isDemoMode
+
+  useEffect(() => {
+    if (!driverLocation) return undefined
+    const expiryTimer = setTimeout(() => setDriverLocation(null), getDriverLocationRemainingMs(driverLocation) + 1)
+    return () => clearTimeout(expiryTimer)
+  }, [driverLocation])
 
   useEffect(() => {
     if (isDemoMode || !ride?.id || rideStatus !== 'requested') return undefined

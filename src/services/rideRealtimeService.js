@@ -66,6 +66,11 @@ export function isFreshDriverLocation(location, { now = Date.now(), maxAgeMs = D
   return recordedAt <= now && now - recordedAt <= maxAgeMs
 }
 
+export function getDriverLocationRemainingMs(location, { now = Date.now(), maxAgeMs = DRIVER_LOCATION_MAX_AGE_MS } = {}) {
+  if (!isFreshDriverLocation(location, { now, maxAgeMs })) return 0
+  return Math.max(0, maxAgeMs - (now - Date.parse(location.recordedAt)))
+}
+
 export class SupabaseRideRealtimeService {
   constructor({ client = null, clientFactory = null } = {}) {
     this.client = client
@@ -109,6 +114,23 @@ export class SupabaseRideRealtimeService {
     assertRideId(rideId)
     let channel
     let active = true
+    let locationExpiryTimer
+
+    const clearLocationExpiry = () => {
+      if (locationExpiryTimer) clearTimeout(locationExpiryTimer)
+      locationExpiryTimer = undefined
+    }
+
+    const emitDriverLocation = (location) => {
+      clearLocationExpiry()
+      onDriverLocationChange?.(location)
+      if (!location) return
+      const remainingMs = getDriverLocationRemainingMs(location, { now: now(), maxAgeMs })
+      locationExpiryTimer = setTimeout(() => {
+        locationExpiryTimer = undefined
+        if (active) onDriverLocationChange?.(null)
+      }, remainingMs + 1)
+    }
 
     const subscribe = async () => {
       try {
@@ -123,7 +145,7 @@ export class SupabaseRideRealtimeService {
               try {
                 const ride = normalizeRide(payload.new)
                 onRideChange?.(ride)
-                if (!LOCATION_VISIBLE_STATUSES.has(ride.status)) onDriverLocationChange?.(null)
+                if (!LOCATION_VISIBLE_STATUSES.has(ride.status)) emitDriverLocation(null)
               } catch (error) {
                 onError?.(error)
               }
@@ -134,12 +156,12 @@ export class SupabaseRideRealtimeService {
             { event: '*', schema: 'public', table: 'driver_locations', filter: `ride_id=eq.${rideId}` },
             (payload) => {
               if (payload.eventType === 'DELETE') {
-                onDriverLocationChange?.(null)
+                emitDriverLocation(null)
                 return
               }
               try {
                 const location = normalizeLocation(payload.new)
-                onDriverLocationChange?.(isFreshDriverLocation(location, { now: now(), maxAgeMs }) ? location : null)
+                emitDriverLocation(isFreshDriverLocation(location, { now: now(), maxAgeMs }) ? location : null)
               } catch (error) {
                 onError?.(error)
               }
@@ -159,6 +181,7 @@ export class SupabaseRideRealtimeService {
     void subscribe()
     return () => {
       active = false
+      clearLocationExpiry()
       if (channel) void channel.unsubscribe()
     }
   }
