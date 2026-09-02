@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const migration = readFileSync(resolve(process.cwd(), 'supabase/migrations/005_live_driver_locations.sql'), 'utf8')
+const freshnessMigration = readFileSync(resolve(process.cwd(), 'supabase/migrations/006_live_driver_location_freshness.sql'), 'utf8')
 
 describe('contrat backend Géolocalisation — Lot 4A', () => {
   it('conserve une seule position courante par course et valide les coordonnées', () => {
@@ -38,5 +39,11 @@ describe('contrat backend Géolocalisation — Lot 4A', () => {
     expect(migration).toContain('alter publication supabase_realtime add table public.driver_locations')
     expect(migration).toContain('alter table public.rides replica identity full')
     expect(migration).toContain('alter table public.driver_locations replica identity full')
+  })
+
+  it('ne laisse pas lire une position vieille de plus de 60 secondes', () => {
+    expect(freshnessMigration).toContain("driver_locations.recorded_at > now() - interval '60 seconds'")
+    expect(freshnessMigration).toContain('drop policy if exists driver_locations_select_active_participant')
+    expect(freshnessMigration).toContain('r.passenger_id = (select auth.uid()) or r.driver_id = (select auth.uid())')
   })
 })

@@ -115,7 +115,7 @@ export default function ActiveRide() {
 
     realtime.getDriverLocation(ride.id)
       .then((location) => {
-        if (!cancelled && location) setDriverLocation(location)
+        if (!cancelled) setDriverLocation(location)
       })
       .catch((error) => {
         if (!cancelled) setRealtimeError(error.message || 'La position du chauffeur n’a pas pu être chargée.')
@@ -124,7 +124,7 @@ export default function ActiveRide() {
     const unsubscribe = realtime.subscribeToRide(ride.id, {
       onRideChange: applyRide,
       onDriverLocationChange: (location) => {
-        if (!cancelled) setDriverLocation(location)
+        if (!cancelled) setDriverLocation(location || null)
       },
       onError: (error) => {
         if (!cancelled) setRealtimeError(error.message || 'La synchronisation temps réel est indisponible.')

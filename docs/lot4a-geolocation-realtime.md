@@ -27,6 +27,11 @@ le statut actif de celle-ci. Une position n'est lisible que par le passager ou
 le chauffeur de cette course pendant les statuts `assigned`, `arriving`,
 `arrived` et `in_progress`.
 
+La migration additive `006_live_driver_location_freshness.sql` renforce cette
+lecture : une position de plus de 60 secondes est filtrée par PostgreSQL. Le
+service frontend applique le même TTL avant l'affichage et efface la position
+sur une suppression Realtime ou dès que la course quitte un statut actif.
+
 La publication Realtime porte sur `rides` et `driver_locations`. Il faut
 appliquer la migration dans le projet Supabase de recette avant de tester une
 position réelle.

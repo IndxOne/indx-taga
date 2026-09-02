@@ -2,6 +2,8 @@ import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
 
 const ACTIVE_RIDE_STATUSES = new Set(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'completed', 'cancelled', 'no_driver'])
+const LOCATION_VISIBLE_STATUSES = new Set(['assigned', 'arriving', 'arrived', 'in_progress'])
+export const DRIVER_LOCATION_MAX_AGE_MS = 60_000
 
 function realtimeError(message, code = 'realtime_error') {
   const error = new Error(message)
@@ -57,6 +59,13 @@ function normalizeLocation(row) {
   }
 }
 
+export function isFreshDriverLocation(location, { now = Date.now(), maxAgeMs = DRIVER_LOCATION_MAX_AGE_MS } = {}) {
+  if (!location?.recordedAt || !Number.isFinite(maxAgeMs) || maxAgeMs < 0) return false
+  const recordedAt = Date.parse(location.recordedAt)
+  if (!Number.isFinite(recordedAt)) return false
+  return recordedAt <= now && now - recordedAt <= maxAgeMs
+}
+
 export class SupabaseRideRealtimeService {
   constructor({ client = null, clientFactory = null } = {}) {
     this.client = client
@@ -81,18 +90,22 @@ export class SupabaseRideRealtimeService {
     return data ? normalizeRide(data) : null
   }
 
-  async getDriverLocation(rideId) {
+  async getDriverLocation(rideId, { now = Date.now(), maxAgeMs = DRIVER_LOCATION_MAX_AGE_MS } = {}) {
     assertRideId(rideId)
+    const cutoff = new Date(now - maxAgeMs).toISOString()
     const { data, error } = await (await this.getClient())
       .from('driver_locations')
       .select('ride_id, driver_id, latitude, longitude, accuracy_m, heading_deg, speed_mps, recorded_at, updated_at')
       .eq('ride_id', rideId)
+      .gte('recorded_at', cutoff)
       .maybeSingle()
     if (error) throw error
-    return data ? normalizeLocation(data) : null
+    if (!data) return null
+    const location = normalizeLocation(data)
+    return isFreshDriverLocation(location, { now, maxAgeMs }) ? location : null
   }
 
-  subscribeToRide(rideId, { onRideChange, onDriverLocationChange, onError } = {}) {
+  subscribeToRide(rideId, { onRideChange, onDriverLocationChange, onError, now = Date.now, maxAgeMs = DRIVER_LOCATION_MAX_AGE_MS } = {}) {
     assertRideId(rideId)
     let channel
     let active = true
@@ -108,7 +121,9 @@ export class SupabaseRideRealtimeService {
             { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` },
             (payload) => {
               try {
-                onRideChange?.(normalizeRide(payload.new))
+                const ride = normalizeRide(payload.new)
+                onRideChange?.(ride)
+                if (!LOCATION_VISIBLE_STATUSES.has(ride.status)) onDriverLocationChange?.(null)
               } catch (error) {
                 onError?.(error)
               }
@@ -118,9 +133,13 @@ export class SupabaseRideRealtimeService {
             'postgres_changes',
             { event: '*', schema: 'public', table: 'driver_locations', filter: `ride_id=eq.${rideId}` },
             (payload) => {
-              if (payload.eventType === 'DELETE') return
+              if (payload.eventType === 'DELETE') {
+                onDriverLocationChange?.(null)
+                return
+              }
               try {
-                onDriverLocationChange?.(normalizeLocation(payload.new))
+                const location = normalizeLocation(payload.new)
+                onDriverLocationChange?.(isFreshDriverLocation(location, { now: now(), maxAgeMs }) ? location : null)
               } catch (error) {
                 onError?.(error)
               }
