@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
 import MapView from '../../components/MapView'
@@ -5,6 +6,8 @@ import AmountTile from '../../components/AmountTile'
 import ToggleSwitch from '../../components/ToggleSwitch'
 import { DRIVER_NAV_ITEMS, ROUTES } from '../../navigation/routes'
 import Icon from '../../components/Icon'
+import { getDispatchService } from '../../services/dispatchService'
+import { isDemoMode } from '../../services/runtimeConfig'
 
 export default function Online() {
   const navigate = useNavigate()
@@ -14,6 +17,27 @@ export default function Online() {
   const driverEarningsToday = useAppStore((state) => state.driverEarningsToday)
   const driverRidesToday = useAppStore((state) => state.driverRidesToday)
   const driverHoursOnline = useAppStore((state) => state.driverHoursOnline)
+  const [availabilityError, setAvailabilityError] = useState('')
+  const [isUpdatingAvailability, setIsUpdatingAvailability] = useState(false)
+
+  const handleAvailabilityChange = async (nextAvailable) => {
+    if (isUpdatingAvailability) return
+    setAvailabilityError('')
+    if (isDemoMode) {
+      setDriverAvailable(nextAvailable)
+      return
+    }
+
+    setIsUpdatingAvailability(true)
+    try {
+      const result = await getDispatchService().setDriverAvailability(nextAvailable)
+      setDriverAvailable(result.available)
+    } catch (error) {
+      setAvailabilityError(error.message || 'La disponibilité n’a pas pu être mise à jour.')
+    } finally {
+      setIsUpdatingAvailability(false)
+    }
+  }
 
   return (
     <div className="relative flex h-full min-h-[700px] flex-1 overflow-hidden bg-[#dcebe8]">
@@ -52,15 +76,27 @@ export default function Online() {
           <ToggleSwitch
             id="availability-toggle"
             checked={driverAvailable}
-            onChange={setDriverAvailable}
+            onChange={handleAvailabilityChange}
             label="Disponible pour course"
           />
-          {driverAvailable && (
+          {isDemoMode && driverAvailable && (
             <button type="button" onClick={() => navigate(ROUTES.driverIncomingRequest)} className="rounded-lg bg-taga-mango px-3 py-2 text-xs font-bold text-white">
               Simuler →
             </button>
           )}
         </div>
+
+        {availabilityError && (
+          <p className="rounded-xl bg-red-50 px-3 py-2 text-xs leading-5 text-red-600" role="alert">
+            {availabilityError}
+          </p>
+        )}
+
+        {!isDemoMode && (
+          <p className="text-[10px] leading-4 text-gray-400" role="status" aria-live="polite">
+            {isUpdatingAvailability ? 'Synchronisation de ta disponibilité…' : 'La disponibilité est contrôlée par le serveur.'}
+          </p>
+        )}
 
         <div className="flex items-center gap-3 rounded-xl bg-[#fff5e8] px-3 py-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-taga-mango/20 text-taga-mango"><Icon name="target" size={16} /></div>

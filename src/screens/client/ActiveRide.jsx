@@ -1,18 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
 import MapView from '../../components/MapView'
 import DriverInfoCard from '../../components/DriverInfoCard'
 import PrimaryButton from '../../components/PrimaryButton'
 import ClientRideMap from '../../components/ClientRideMap'
+import { getDispatchService } from '../../services/dispatchService'
 import { isDemoMode } from '../../services/runtimeConfig'
 
 const STATUS_LABEL = {
   requested: 'Demande enregistrée',
   searching: "Recherche d'un chauffeur...",
+  assigned: 'Chauffeur trouvé',
+  arriving: 'Chauffeur en approche',
   driver_en_route: 'Chauffeur en approche · 3 min',
   arrived: 'Chauffeur arrivé',
   in_progress: 'Course en cours',
+  no_driver: 'Aucun chauffeur disponible',
 }
 
 const NEXT_STATUS = {
@@ -26,9 +30,35 @@ export default function ActiveRide() {
   const ride = useAppStore((state) => state.ride)
   const driver = useAppStore((state) => state.driver)
   const rideStatus = useAppStore((state) => state.rideStatus)
+  const setRide = useAppStore((state) => state.setRide)
   const setRideStatus = useAppStore((state) => state.setRideStatus)
   const [contactNotice, setContactNotice] = useState('')
-  const showDriverDetails = isDemoMode || ['assigned', 'arriving', 'arrived', 'in_progress'].includes(rideStatus)
+  const [dispatchError, setDispatchError] = useState('')
+  const showDriverDetails = isDemoMode
+
+  useEffect(() => {
+    if (isDemoMode || !ride?.id || rideStatus !== 'requested') return undefined
+
+    let cancelled = false
+    getDispatchService().requestRideDispatch(ride.id)
+      .then((dispatchedRide) => {
+        if (cancelled) return
+        setRide({
+          ...ride,
+          id: dispatchedRide.id,
+          status: dispatchedRide.status,
+          driverId: dispatchedRide.driverId,
+        })
+        setRideStatus(dispatchedRide.status)
+      })
+      .catch((error) => {
+        if (!cancelled) setDispatchError(error.message || 'La recherche d’un chauffeur n’a pas pu démarrer.')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [ride, rideStatus, setRide, setRideStatus])
 
   const advance = () => {
     const next = NEXT_STATUS[rideStatus]
@@ -65,9 +95,11 @@ export default function ActiveRide() {
           </div>
         ) : (
           <div className="rounded-xl bg-taga-blue/5 px-4 py-3 text-sm leading-5 text-gray-600" role="status">
-            Votre demande est enregistrée. La recherche d’un chauffeur sera activée dans un prochain lot.
+            Votre demande est enregistrée. Recherche d’un chauffeur en cours.
           </div>
         )}
+
+        {dispatchError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-center text-xs text-red-600">{dispatchError}</p>}
 
         {isDemoMode && <div className="mt-auto">
           <PrimaryButton variant="green" onClick={advance}>

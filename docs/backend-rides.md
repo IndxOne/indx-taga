@@ -82,6 +82,10 @@ Cette recette doit être exécutée avant d'autoriser le matching ou une transit
 de statut. Les tests Vitest vérifient le contrat côté dépôt ; ils ne remplacent
 pas cette vérification RLS sur le PostgreSQL de recette.
 
+Le dispatch du lot suivant est décrit dans [`backend-dispatch.md`](./backend-dispatch.md)
+et dépend de l'application de `supabase/migrations/003_dispatch.sql` après ces
+migrations.
+
 ## Hors périmètre
 
 Matching, géolocalisation active, transitions, paiement, commission,
