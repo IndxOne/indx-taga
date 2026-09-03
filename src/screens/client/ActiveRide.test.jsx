@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { MOCK_RIDE, useAppStore } from '../../store/useAppStore'
@@ -9,6 +9,13 @@ const mocks = vi.hoisted(() => ({
     getActiveRide: vi.fn(),
     getDriverLocation: vi.fn(),
     subscribeToRide: vi.fn(),
+  },
+  dispatch: {
+    requestRideDispatch: vi.fn(),
+  },
+  ride: {
+    cancelRideSearch: vi.fn(),
+    retryRideSearch: vi.fn(),
   },
 }))
 
@@ -23,10 +30,10 @@ vi.mock('../../services/rideRealtimeService', () => ({
   getRideRealtimeService: () => mocks.realtime,
 }))
 vi.mock('../../services/dispatchService', () => ({
-  getDispatchService: () => ({ requestRideDispatch: vi.fn() }),
+  getDispatchService: () => mocks.dispatch,
 }))
 vi.mock('../../services/rideService', () => ({
-  getRideService: () => ({ cancelRideSearch: vi.fn(), retryRideSearch: vi.fn() }),
+  getRideService: () => mocks.ride,
 }))
 
 import ActiveRide from './ActiveRide'
@@ -56,6 +63,9 @@ describe('ActiveRide en mode réel', () => {
     mocks.realtime.getActiveRide.mockResolvedValue(searchingRide)
     mocks.realtime.getDriverLocation.mockResolvedValue(null)
     mocks.realtime.subscribeToRide.mockReturnValue(vi.fn())
+    mocks.dispatch.requestRideDispatch.mockReset()
+    mocks.ride.cancelRideSearch.mockReset()
+    mocks.ride.retryRideSearch.mockReset()
   })
 
   afterEach(() => cleanup())
@@ -92,5 +102,44 @@ describe('ActiveRide en mode réel', () => {
 
     await waitFor(() => expect(mocks.realtime.getDriverLocation).toHaveBeenCalledWith('ride-searching'))
     expect(screen.queryByRole('button', { name: 'Annuler la recherche' })).toBeNull()
+  })
+
+  it('relance la recherche et appelle le dispatch une seule fois malgré un double clic', async () => {
+    let resolveReset
+    const resetRide = { ...searchingRide, status: 'requested', dispatchDeadlineAt: null }
+    const dispatchedRide = { ...searchingRide, dispatchDeadlineAt: new Date(Date.now() + 120_000).toISOString() }
+    mocks.realtime.getActiveRide.mockResolvedValue({ ...searchingRide, status: 'no_driver', dispatchDeadlineAt: null })
+    mocks.ride.retryRideSearch.mockReturnValue(new Promise((resolve) => { resolveReset = resolve }))
+    mocks.dispatch.requestRideDispatch.mockResolvedValue(dispatchedRide)
+
+    render(<MemoryRouter><ActiveRide /></MemoryRouter>)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Réessayer' })).toBeTruthy())
+
+    const retryButton = screen.getByRole('button', { name: 'Réessayer' })
+    fireEvent.click(retryButton)
+    fireEvent.click(retryButton)
+
+    expect(mocks.ride.retryRideSearch).toHaveBeenCalledTimes(1)
+    expect(useAppStore.getState().ride).toMatchObject({ id: 'ride-searching', status: 'searching' })
+    expect(screen.getByRole('button', { name: 'Relance en cours…' })).toBeTruthy()
+
+    resolveReset(resetRide)
+    await waitFor(() => expect(mocks.dispatch.requestRideDispatch).toHaveBeenCalledWith('ride-searching'))
+    expect(mocks.dispatch.requestRideDispatch).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(useAppStore.getState().ride).toMatchObject({ id: 'ride-searching', status: 'searching' }))
+  })
+
+  it('affiche l’erreur backend et conserve un statut honnête si le dispatch échoue', async () => {
+    const resetRide = { ...searchingRide, status: 'requested', dispatchDeadlineAt: null }
+    mocks.realtime.getActiveRide.mockResolvedValue({ ...searchingRide, status: 'no_driver', dispatchDeadlineAt: null })
+    mocks.ride.retryRideSearch.mockResolvedValue(resetRide)
+    mocks.dispatch.requestRideDispatch.mockRejectedValue(new Error('Service de dispatch indisponible.'))
+
+    render(<MemoryRouter><ActiveRide /></MemoryRouter>)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Réessayer' })).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Service de dispatch indisponible.'))
+    expect(useAppStore.getState().ride).toMatchObject({ id: 'ride-searching', status: 'requested' })
   })
 })

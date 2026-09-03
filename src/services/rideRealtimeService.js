@@ -2,7 +2,7 @@ import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
 
 const ACTIVE_RIDE_STATUSES = new Set(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'completed', 'cancelled', 'no_driver'])
-const RESTORABLE_RIDE_STATUSES = Object.freeze(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress'])
+const RESTORABLE_RIDE_STATUSES = Object.freeze(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'no_driver'])
 const LOCATION_VISIBLE_STATUSES = new Set(['assigned', 'arriving', 'arrived', 'in_progress'])
 export const DRIVER_LOCATION_MAX_AGE_MS = 60_000
 const RIDE_COLUMNS = 'id, passenger_id, driver_id, pickup_label, pickup_lat, pickup_lng, destination_label, destination_lat, destination_lng, ride_type, scheduled_at, status, estimated_price, assigned_at, dispatch_deadline_at, created_at, updated_at'

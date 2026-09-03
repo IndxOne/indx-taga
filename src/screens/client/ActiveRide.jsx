@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
 import MapProvider from '../../components/MapProvider'
@@ -77,6 +77,7 @@ export default function ActiveRide() {
   const [realtimeError, setRealtimeError] = useState('')
   const [driverLocation, setDriverLocation] = useState(null)
   const [isRestoringRide, setIsRestoringRide] = useState(!isDemoMode)
+  const retryingRideIdRef = useRef(null)
   const displayedRideStatus = isDemoMode ? rideStatus : ride?.status ?? rideStatus
   const showDriverDetails = isDemoMode && DRIVER_ASSIGNED_STATUSES.has(displayedRideStatus)
 
@@ -214,16 +215,33 @@ export default function ActiveRide() {
   }
 
   const retrySearch = async () => {
-    if (!ride?.id || isRetrying) return
+    if (!ride?.id || isRetrying || retryingRideIdRef.current === ride.id) return
+    const rideId = ride.id
+    retryingRideIdRef.current = rideId
     setIsRetrying(true)
     setActionError('')
+    updateRide({ id: rideId, status: 'searching', driverId: null, dispatchDeadlineAt: null })
+    setRideStatus('searching')
+    let searchReset = false
     try {
-      const retriedRide = await getRideService().retryRideSearch(ride.id)
-      updateRide({ id: retriedRide.id, status: retriedRide.status, driverId: null, dispatchDeadlineAt: null })
-      setRideStatus(retriedRide.status)
+      const retriedRide = await getRideService().retryRideSearch(rideId)
+      searchReset = true
+      const searchingRide = await getDispatchService().requestRideDispatch(retriedRide.id)
+      updateRide({
+        id: searchingRide.id,
+        status: searchingRide.status,
+        driverId: searchingRide.driverId,
+        dispatchDeadlineAt: searchingRide.dispatchDeadlineAt,
+        assignedAt: searchingRide.assignedAt,
+      })
+      setRideStatus(searchingRide.status)
     } catch (error) {
+      const fallbackStatus = searchReset ? 'requested' : 'no_driver'
+      updateRide({ id: rideId, status: fallbackStatus, driverId: null, dispatchDeadlineAt: null })
+      setRideStatus(fallbackStatus)
       setActionError(error.message || 'La recherche n’a pas pu être relancée.')
     } finally {
+      retryingRideIdRef.current = null
       setIsRetrying(false)
     }
   }
@@ -294,7 +312,7 @@ export default function ActiveRide() {
         {actionError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-center text-xs text-red-600">{actionError}</p>}
         {realtimeError && <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-700">{realtimeError}</p>}
 
-        {SEARCH_STATUSES.has(displayedRideStatus) && (
+        {!isRetrying && SEARCH_STATUSES.has(displayedRideStatus) && (
           <button
             type="button"
             onClick={cancelSearch}
@@ -305,7 +323,7 @@ export default function ActiveRide() {
           </button>
         )}
 
-        {!isDemoMode && displayedRideStatus === 'no_driver' && <div className="mt-auto">
+        {!isDemoMode && (displayedRideStatus === 'no_driver' || isRetrying) && <div className="mt-auto">
           <PrimaryButton variant="green" onClick={retrySearch} disabled={isRetrying}>
             {isRetrying ? 'Relance en cours…' : 'Réessayer'}
           </PrimaryButton>

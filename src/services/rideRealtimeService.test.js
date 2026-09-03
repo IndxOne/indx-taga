@@ -69,7 +69,7 @@ describe('SupabaseRideRealtimeService', () => {
     const service = new SupabaseRideRealtimeService({ client: { from: vi.fn(() => rideQuery) } })
 
     await expect(service.getActiveRide()).resolves.toMatchObject({ id: 'ride-1', status: 'searching', driverId: null })
-    expect(rideQuery.in).toHaveBeenCalledWith('status', ['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress'])
+    expect(rideQuery.in).toHaveBeenCalledWith('status', ['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'no_driver'])
     expect(rideQuery.order).toHaveBeenCalledWith('created_at', { ascending: false })
     expect(rideQuery.limit).toHaveBeenCalledWith(1)
   })
