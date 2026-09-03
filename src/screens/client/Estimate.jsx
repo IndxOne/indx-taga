@@ -8,6 +8,7 @@ import BackButton from '../../components/BackButton'
 import { ROUTES } from '../../navigation/routes'
 import ClientRideMap from '../../components/ClientRideMap'
 import { getRideService } from '../../services/rideService'
+import { getRidePricing } from '../../services/rideFare'
 import { getCurrentPosition } from '../../services/geolocationService'
 import { isDemoMode } from '../../services/runtimeConfig'
 
@@ -39,11 +40,12 @@ export default function Estimate() {
         destination: { label: ride.dropoffLabel },
         ride_type: selectedOption.id,
       })
+      const pricing = getRidePricing(createdRide.estimatedPrice, selectedOption.id)
       setRide({
         ...ride,
         id: createdRide.id,
         status: createdRide.status,
-        estimatedPrice: createdRide.estimatedPrice,
+        ...pricing,
       })
       // Le mode démo conserve son scénario visuel. En mode réel, le statut
       // affiché provient de la réponse RPC et reste requested pour ce lot.

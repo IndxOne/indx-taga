@@ -1,5 +1,6 @@
 import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
+import { getRidePricing } from './rideFare'
 
 export const RIDE_TYPES = Object.freeze(['go', 'partage', 'family', 'confort'])
 
@@ -68,6 +69,7 @@ function normalizeCreateInput(input = {}) {
 function fromDatabaseRow(row) {
   const value = Array.isArray(row) ? row[0] : row
   if (!value?.id) throw new Error('La course créée n’a pas été retournée par le backend.')
+  const pricing = getRidePricing(value.estimated_price, value.ride_type)
 
   return {
     id: value.id,
@@ -77,7 +79,7 @@ function fromDatabaseRow(row) {
     rideType: value.ride_type,
     scheduledAt: value.scheduled_at,
     status: value.status,
-    estimatedPrice: value.estimated_price,
+    ...pricing,
     createdAt: value.created_at,
     updatedAt: value.updated_at,
   }
@@ -136,6 +138,7 @@ export class DemoRideService {
   async createRide(input) {
     const payload = normalizeCreateInput(input)
     const now = new Date().toISOString()
+    const pricing = getRidePricing(null, payload.ride_type)
     return {
       id: `demo-ride-${Date.now()}`,
       passengerId: 'demo-passenger',
@@ -144,7 +147,7 @@ export class DemoRideService {
       rideType: payload.ride_type,
       scheduledAt: payload.scheduled_at,
       status: 'requested',
-      estimatedPrice: null,
+      ...pricing,
       createdAt: now,
       updatedAt: now,
     }

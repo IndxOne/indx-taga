@@ -1,5 +1,6 @@
 import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
+import { getRidePricing } from './rideFare'
 
 const ACTIVE_RIDE_STATUSES = new Set(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'completed', 'cancelled', 'no_driver'])
 const RESTORABLE_RIDE_STATUSES = Object.freeze(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'no_driver'])
@@ -24,6 +25,7 @@ function normalizeRide(row) {
   if (!value?.id || !ACTIVE_RIDE_STATUSES.has(value.status)) {
     throw realtimeError('La course reçue en temps réel est invalide.', 'invalid_realtime_response')
   }
+  const pricing = getRidePricing(value.estimated_price, value.ride_type)
   return {
     id: value.id,
     passengerId: value.passenger_id,
@@ -35,7 +37,7 @@ function normalizeRide(row) {
     rideType: value.ride_type,
     scheduledAt: value.scheduled_at,
     status: value.status,
-    estimatedPrice: value.estimated_price,
+    ...pricing,
     assignedAt: value.assigned_at || null,
     dispatchDeadlineAt: value.dispatch_deadline_at || null,
     createdAt: value.created_at,
@@ -154,6 +156,7 @@ export class SupabaseRideRealtimeService {
     assertRideId(rideId)
     let channel
     let active = true
+    let locationVisible = true
     let locationExpiryTimer
 
     const clearLocationExpiry = () => {
@@ -184,8 +187,9 @@ export class SupabaseRideRealtimeService {
             (payload) => {
               try {
                 const ride = normalizeRide(payload.new)
+                locationVisible = LOCATION_VISIBLE_STATUSES.has(ride.status)
                 onRideChange?.(ride)
-                if (!LOCATION_VISIBLE_STATUSES.has(ride.status)) emitDriverLocation(null)
+                if (!locationVisible) emitDriverLocation(null)
               } catch (error) {
                 onError?.(error)
               }
@@ -195,6 +199,7 @@ export class SupabaseRideRealtimeService {
             'postgres_changes',
             { event: '*', schema: 'public', table: 'driver_locations', filter: `ride_id=eq.${rideId}` },
             (payload) => {
+              if (!locationVisible) return
               if (payload.eventType === 'DELETE') {
                 emitDriverLocation(null)
                 return

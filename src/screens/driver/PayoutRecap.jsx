@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
 import AmountTile from '../../components/AmountTile'
 import PrimaryButton from '../../components/PrimaryButton'
+import { getRidePricing } from '../../services/rideFare'
 
 export default function PayoutRecap() {
   const navigate = useNavigate()
@@ -11,6 +12,9 @@ export default function PayoutRecap() {
   const paymentMethods = useAppStore((state) => state.paymentMethods)
   const [withdrawalState, setWithdrawalState] = useState('idle')
   const [selectedPayout, setSelectedPayout] = useState('orange_money')
+  const driverEarning = Number.isFinite(ride.driverEarning)
+    ? ride.driverEarning
+    : getRidePricing(ride.estimatedPrice ?? ride.price, ride.rideType).driverEarning
 
   const handleWithdrawal = () => {
     setWithdrawalState('requested')
@@ -20,7 +24,7 @@ export default function PayoutRecap() {
     <div className="flex-1 overflow-y-auto bg-[#f4f6fa] px-5 py-7 text-taga-navy flex flex-col gap-4">
       <div><p className="text-taga-green text-xs font-semibold">● COURSE TERMINÉE · 10:42</p><h1 className="text-2xl font-bold mt-2">Bien joué chef.</h1><p className="text-gray-500 text-sm">Akissi t'a mis 5★.</p></div>
       <div className="rounded-2xl bg-gradient-to-br from-taga-green via-taga-navy to-[#6a4d4d] p-4 text-white shadow-sm"><div className="flex items-start justify-between"><p className="text-xs text-white/60">SOLDE DISPONIBLE</p><p className="text-[10px] text-white/60">SAM. 24 AVR. · 19H32</p></div><AmountTile amount={driverWalletBalance} size="xl" tone="light" /><p className="mt-2 text-[10px] text-white/70">Aujourd'hui · 10 courses &nbsp; Heures · 6h12</p></div>
-      <div className="rounded-2xl bg-white p-4 flex items-center justify-between text-sm shadow-sm"><div><p className="text-gray-400 text-[10px]">DERNIÈRE COURSE</p><p className="font-semibold">{ride.pickupLabel.split(',')[0]} → {ride.dropoffLabel.split(',')[0]}</p><p className="text-[10px] text-gray-400">{ride.distanceKm} km · {ride.durationMin} min · ★ 5.0</p></div><p className="text-taga-green font-bold">+{new Intl.NumberFormat('fr-FR').format(ride.driverEarning)} F</p></div>
+      <div className="rounded-2xl bg-white p-4 flex items-center justify-between text-sm shadow-sm"><div><p className="text-gray-400 text-[10px]">DERNIÈRE COURSE</p><p className="font-semibold">{ride.pickupLabel.split(',')[0]} → {ride.dropoffLabel.split(',')[0]}</p><p className="text-[10px] text-gray-400">{ride.distanceKm} km · {ride.durationMin} min · ★ 5.0</p></div><p className="text-taga-green font-bold">+{new Intl.NumberFormat('fr-FR').format(driverEarning)} F</p></div>
       <div>
         <p className="text-xs text-gray-400 mb-2">RETRAIT MOBILE MONEY</p>
         <div className="rounded-2xl bg-white p-3 shadow-sm">

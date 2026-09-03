@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { RIDE_FARES } from '../services/rideFare'
 
 export const DEV_TEST_PASSENGER_PHONE = '+330775679067'
 
@@ -15,7 +16,7 @@ export const MOCK_RIDE = {
   dropoffLabel: 'Plateau, Imm. CAISTAB',
   distanceKm: 14.2,
   durationMin: 24,
-  price: 3200,
+  price: RIDE_FARES.go,
   baseFare: 2600,
   distanceFee: 500,
   serviceFee: 100,
@@ -23,10 +24,10 @@ export const MOCK_RIDE = {
 }
 
 export const RIDE_OPTIONS = [
-  { id: 'go', name: 'TAGA Go', badge: 'POPULAIRE', description: 'Standard · 4 pers. Corolla, Yaris...', price: 3200, originalPrice: 3800 },
-  { id: 'partage', name: 'TAGA Partage', badge: '-40%', description: 'Covoiturage · 5 min d\'attente', price: 1900 },
-  { id: 'family', name: 'TAGA Family', badge: null, description: 'Jusqu\'à 6 pers. Monospace', price: 4500 },
-  { id: 'confort', name: 'TAGA Confort', badge: null, description: 'Premium · clim. Camry, Accord...', price: 4200 },
+  { id: 'go', name: 'TAGA Go', badge: 'POPULAIRE', description: 'Standard · 4 pers. Corolla, Yaris...', price: RIDE_FARES.go, originalPrice: 3800 },
+  { id: 'partage', name: 'TAGA Partage', badge: '-40%', description: 'Covoiturage · 5 min d\'attente', price: RIDE_FARES.partage },
+  { id: 'family', name: 'TAGA Family', badge: null, description: 'Jusqu\'à 6 pers. Monospace', price: RIDE_FARES.family },
+  { id: 'confort', name: 'TAGA Confort', badge: null, description: 'Premium · clim. Camry, Accord...', price: RIDE_FARES.confort },
 ]
 
 export const MOCK_PROFILE = {

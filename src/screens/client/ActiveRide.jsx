@@ -7,6 +7,7 @@ import PrimaryButton from '../../components/PrimaryButton'
 import ClientRideMap from '../../components/ClientRideMap'
 import { getDispatchService } from '../../services/dispatchService'
 import { getRideService } from '../../services/rideService'
+import { getRidePricing } from '../../services/rideFare'
 import { getDriverLocationRemainingMs, getRideRealtimeService } from '../../services/rideRealtimeService'
 import { isDemoMode } from '../../services/runtimeConfig'
 
@@ -43,6 +44,7 @@ const SEARCH_STATUSES = new Set(['requested', 'searching'])
 const DRIVER_ASSIGNED_STATUSES = new Set(['assigned', 'arriving', 'driver_en_route', 'arrived', 'in_progress', 'completed'])
 
 function mapRealtimeRideToStore(backendRide) {
+  const pricing = getRidePricing(backendRide.estimatedPrice, backendRide.rideType)
   return {
     id: backendRide.id,
     passengerId: backendRide.passengerId,
@@ -54,7 +56,7 @@ function mapRealtimeRideToStore(backendRide) {
     rideType: backendRide.rideType,
     scheduledAt: backendRide.scheduledAt,
     status: backendRide.status,
-    estimatedPrice: backendRide.estimatedPrice,
+    ...pricing,
     assignedAt: backendRide.assignedAt,
     dispatchDeadlineAt: backendRide.dispatchDeadlineAt,
     createdAt: backendRide.createdAt,
@@ -154,6 +156,9 @@ export default function ActiveRide() {
       if (cancelled || !serverRide) return
       updateRide(mapRealtimeRideToStore(serverRide))
       setRideStatus(serverRide.status)
+      if (!['assigned', 'arriving', 'arrived', 'in_progress'].includes(serverRide.status)) {
+        setDriverLocation(null)
+      }
     }
 
     const restoreActiveRide = async () => {

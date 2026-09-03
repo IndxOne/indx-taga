@@ -1,5 +1,6 @@
 import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
+import { getRidePricing } from './rideFare'
 
 const AVAILABILITY_STATUSES = Object.freeze(['offline', 'available', 'on_ride'])
 
@@ -28,6 +29,7 @@ function normalizeAvailability(row) {
 function normalizeRide(row) {
   const value = Array.isArray(row) ? row[0] : row
   if (!value?.id) throw backendError('La course retournée par le backend est invalide.', 'invalid_dispatch_response')
+  const pricing = getRidePricing(value.estimated_price, value.ride_type)
 
   return {
     id: value.id,
@@ -40,7 +42,7 @@ function normalizeRide(row) {
     scheduledAt: value.scheduled_at,
     driverId: value.driver_id || null,
     status: value.status,
-    estimatedPrice: value.estimated_price,
+    ...pricing,
     assignedAt: value.assigned_at || null,
     dispatchDeadlineAt: value.dispatch_deadline_at || null,
     createdAt: value.created_at,

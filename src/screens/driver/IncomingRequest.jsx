@@ -7,14 +7,16 @@ import BackButton from '../../components/BackButton'
 import DriverRideMap from '../../components/DriverRideMap'
 import { getDispatchService } from '../../services/dispatchService'
 import { getRideRealtimeService } from '../../services/rideRealtimeService'
+import { getRidePricing } from '../../services/rideFare'
 import { isDemoMode } from '../../services/runtimeConfig'
 import { ROUTES } from '../../navigation/routes'
 
 function formatAmount(amount, fallback = 'Montant à confirmer') {
-  return amount == null ? fallback : `${new Intl.NumberFormat('fr-FR').format(amount)} F`
+  return !Number.isFinite(amount) ? fallback : `${new Intl.NumberFormat('fr-FR').format(amount)} F`
 }
 
 function mapRideToStore(backendRide) {
+  const pricing = getRidePricing(backendRide.estimatedPrice, backendRide.rideType)
   return {
     id: backendRide.id,
     passengerId: backendRide.passengerId,
@@ -26,7 +28,7 @@ function mapRideToStore(backendRide) {
     scheduledAt: backendRide.scheduledAt,
     driverId: backendRide.driverId,
     status: backendRide.status,
-    estimatedPrice: backendRide.estimatedPrice,
+    ...pricing,
     assignedAt: backendRide.assignedAt,
     dispatchDeadlineAt: backendRide.dispatchDeadlineAt,
     createdAt: backendRide.createdAt,
@@ -224,8 +226,13 @@ export default function IncomingRequest() {
   }
 
   const ride = isDemoMode ? storeRide : offer.ride
-  const totalAmount = isDemoMode ? ride.price : ride.estimatedPrice
-  const driverAmount = isDemoMode ? ride.driverEarning : totalAmount == null ? null : Math.round(totalAmount * 0.85)
+  const pricing = isDemoMode ? {
+    estimatedPrice: ride.price,
+    price: ride.price,
+    driverEarning: ride.driverEarning,
+  } : getRidePricing(ride.estimatedPrice, ride.rideType)
+  const totalAmount = pricing.price
+  const driverAmount = pricing.driverEarning
   const pickupLabel = ride.pickupLabel || ride.pickup?.label || 'Prise en charge'
   const destinationLabel = ride.dropoffLabel || ride.destination?.label || 'Destination'
   const isResponding = Boolean(responseState)
@@ -249,7 +256,7 @@ export default function IncomingRequest() {
             <p className="text-xs text-gray-400">TU GAGNES</p>
             <p className="font-bold text-3xl">{formatAmount(driverAmount)}</p>
             <p className="text-[10px] text-gray-400">
-              {totalAmount == null ? 'Tarif estimé indisponible' : `Course total : ${formatAmount(totalAmount)} · Net : 85%`}
+              Course total : {formatAmount(totalAmount)} · Net : 85%
             </p>
           </div>
           <div className="flex h-16 w-16 flex-col items-center justify-center rounded-full border-4 border-taga-mango font-bold text-taga-navy">

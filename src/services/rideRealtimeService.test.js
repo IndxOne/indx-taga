@@ -68,7 +68,14 @@ describe('SupabaseRideRealtimeService', () => {
     const rideQuery = queryChain({ data: { ...rideRow, status: 'searching', driver_id: null }, error: null })
     const service = new SupabaseRideRealtimeService({ client: { from: vi.fn(() => rideQuery) } })
 
-    await expect(service.getActiveRide()).resolves.toMatchObject({ id: 'ride-1', status: 'searching', driverId: null })
+    await expect(service.getActiveRide()).resolves.toMatchObject({
+      id: 'ride-1',
+      status: 'searching',
+      driverId: null,
+      estimatedPrice: 3200,
+      price: 3200,
+      driverEarning: 2720,
+    })
     expect(rideQuery.in).toHaveBeenCalledWith('status', ['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'no_driver'])
     expect(rideQuery.order).toHaveBeenCalledWith('created_at', { ascending: false })
     expect(rideQuery.limit).toHaveBeenCalledWith(1)
@@ -204,9 +211,12 @@ describe('SupabaseRideRealtimeService', () => {
     })
     await Promise.resolve()
 
+    handlers[1].handler({ eventType: 'UPDATE', new: { ride_id: 'ride-1', driver_id: 'driver-1', latitude: 5.3, longitude: -4, recorded_at: '2026-09-02T10:02:00.000Z' } })
     handlers[0].handler({ new: { ...rideRow, status: 'completed' } })
+    handlers[1].handler({ eventType: 'UPDATE', new: { ride_id: 'ride-1', driver_id: 'driver-1', latitude: 5.31, longitude: -4.01, recorded_at: '2026-09-02T10:02:00.000Z' } })
 
     expect(onDriverLocationChange).toHaveBeenCalledWith(null)
+    expect(onDriverLocationChange).toHaveBeenCalledTimes(2)
     stop()
   })
 

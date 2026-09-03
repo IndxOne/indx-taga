@@ -41,6 +41,9 @@ describe('SupabaseDispatchService', () => {
       id: 'ride-1',
       status: 'searching',
       driverId: null,
+      estimatedPrice: 3200,
+      price: 3200,
+      driverEarning: 2720,
     })
     expect(rpc).toHaveBeenCalledWith('request_ride_dispatch', { p_ride_id: 'ride-1' })
   })

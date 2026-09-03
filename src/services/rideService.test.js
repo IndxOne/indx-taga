@@ -44,7 +44,9 @@ describe('SupabaseRideService', () => {
       id: 'ride-1',
       passengerId: 'passenger-1',
       status: 'requested',
-      estimatedPrice: null,
+      estimatedPrice: 3200,
+      price: 3200,
+      driverEarning: 2720,
     })
     expect(rpc).toHaveBeenCalledWith('create_ride', {
       p_pickup: validInput.pickup,
@@ -122,7 +124,9 @@ describe('DemoRideService', () => {
     expect(result).toMatchObject({
       passengerId: 'demo-passenger',
       status: 'requested',
-      estimatedPrice: null,
+      estimatedPrice: 3200,
+      price: 3200,
+      driverEarning: 2720,
       rideType: 'go',
     })
     expect(result.id).toMatch(/^demo-ride-/)

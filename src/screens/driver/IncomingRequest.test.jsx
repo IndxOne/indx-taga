@@ -72,6 +72,8 @@ describe('IncomingRequest chauffeur en mode réel', () => {
 
     await waitFor(() => expect(screen.getAllByText('Plateau').length).toBeGreaterThan(0))
     expect(mocks.realtime.getActiveDriverOffer).toHaveBeenCalledTimes(1)
+    expect(screen.getAllByText(/2.?720 F/).length).toBeGreaterThan(0)
+    expect(screen.queryByText('Tarif estimé indisponible')).toBeNull()
     expect(mocks.realtime.subscribeToDriverOffers).toHaveBeenCalledWith(expect.objectContaining({
       onOfferChange: expect.any(Function),
       onError: expect.any(Function),

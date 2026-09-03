@@ -5,6 +5,7 @@ import MapProvider from '../../components/MapProvider'
 import PrimaryButton from '../../components/PrimaryButton'
 import DriverRideMap from '../../components/DriverRideMap'
 import DriverLocationTracker from '../../components/DriverLocationTracker'
+import { getRidePricing } from '../../services/rideFare'
 
 export default function RideInProgress() {
   const navigate = useNavigate()
@@ -13,10 +14,12 @@ export default function RideInProgress() {
   const setRideStatus = useAppStore((state) => state.setRideStatus)
   const creditRideEarning = useAppStore((state) => state.creditRideEarning)
   const [showEmergency, setShowEmergency] = useState(false)
+  const fallbackPricing = getRidePricing(ride.estimatedPrice ?? ride.price, ride.rideType)
+  const driverEarning = Number.isFinite(ride.driverEarning) ? ride.driverEarning : fallbackPricing.driverEarning
 
   const handleComplete = () => {
     setRideStatus('completed')
-    creditRideEarning(ride.driverEarning)
+    creditRideEarning(driverEarning)
     navigate('/driver/payout-recap')
   }
 
@@ -25,13 +28,13 @@ export default function RideInProgress() {
       <div className="bg-taga-green text-white text-sm font-semibold text-center py-2">Course en cours · Akissi à bord</div>
       <div className="bg-taga-navy text-white px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3"><span className="w-9 h-9 rounded-lg bg-taga-mango flex items-center justify-center">→</span><div><p className="font-bold">1.4 km</p><p className="text-xs text-white/60">Tourner à droite — Bd VGE</p></div></div>
-        <div className="text-right"><p className="text-xs text-white/60">TON GAIN</p><p className="font-bold">{new Intl.NumberFormat('fr-FR').format(ride.driverEarning)} F</p></div>
+        <div className="text-right"><p className="text-xs text-white/60">TON GAIN</p><p className="font-bold">{new Intl.NumberFormat('fr-FR').format(driverEarning)} F</p></div>
       </div>
       <MapProvider className="flex-1" aria-label="Carte de la course en cours">
         <DriverRideMap phase="in-progress" />
         <div className="absolute right-4 top-5 z-[3] rounded-xl border-2 border-taga-mango bg-white px-3 py-2 text-right shadow-md">
           <p className="text-[9px] uppercase text-gray-400">Ton gain</p>
-          <p className="font-bold text-taga-navy">{new Intl.NumberFormat('fr-FR').format(ride.driverEarning)} F</p>
+          <p className="font-bold text-taga-navy">{new Intl.NumberFormat('fr-FR').format(driverEarning)} F</p>
         </div>
       </MapProvider>
       <div className="bg-white px-5 py-5 flex flex-col gap-4">

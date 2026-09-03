@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore'
 import AmountTile from '../../components/AmountTile'
 import RatingStars from '../../components/RatingStars'
 import PrimaryButton from '../../components/PrimaryButton'
+import { getRidePricing } from '../../services/rideFare'
 
 const TAGS = ['Conduite', 'À l\'heure', 'Voiture propre']
 const COMPLETION_META = '24 AOÛT 2026 · 18:42'
@@ -20,7 +21,8 @@ export default function RideEnd() {
   const [selectedTags, setSelectedTags] = useState([])
   const [receiptNotice, setReceiptNotice] = useState(false)
 
-  const format = (amount) => new Intl.NumberFormat('fr-FR').format(amount)
+  const totalAmount = getRidePricing(ride.estimatedPrice ?? ride.price, ride.rideType).price
+  const format = (amount) => Number.isFinite(amount) ? new Intl.NumberFormat('fr-FR').format(amount) : '—'
 
   const toggleTag = (tag) => {
     setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
@@ -45,7 +47,7 @@ export default function RideEnd() {
 
       <div className="rounded-2xl bg-white p-4 shadow-sm">
         <div className="flex items-start justify-between">
-          <AmountTile label="Total payé" amount={ride.price} size="xl" />
+          <AmountTile label="Total payé" amount={totalAmount} size="xl" />
           <span className="text-[10px] font-medium text-gray-400">#TGA-8421</span>
         </div>
         <div className="my-3 h-px bg-gray-100" />
