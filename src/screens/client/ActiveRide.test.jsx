@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { MOCK_RIDE, useAppStore } from '../../store/useAppStore'
@@ -93,6 +94,18 @@ describe('ActiveRide en mode réel', () => {
 
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/client/home', { replace: true }))
     expect(mocks.realtime.subscribeToRide).not.toHaveBeenCalled()
+  })
+
+  it('ne lance le dispatch initial qu’une seule fois sous StrictMode', async () => {
+    const requestedRide = { ...searchingRide, status: 'requested', dispatchDeadlineAt: null }
+    const dispatchedRide = { ...searchingRide, dispatchDeadlineAt: new Date(Date.now() + 120_000).toISOString() }
+    mocks.realtime.getActiveRide.mockResolvedValue(requestedRide)
+    mocks.dispatch.requestRideDispatch.mockResolvedValue(dispatchedRide)
+
+    render(<StrictMode><MemoryRouter><ActiveRide /></MemoryRouter></StrictMode>)
+
+    await waitFor(() => expect(mocks.dispatch.requestRideDispatch).toHaveBeenCalledWith('ride-searching'))
+    expect(mocks.dispatch.requestRideDispatch).toHaveBeenCalledTimes(1)
   })
 
   it('ne montre pas l’annulation pour un statut serveur déjà assigned', async () => {

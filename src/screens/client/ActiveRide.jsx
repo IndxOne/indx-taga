@@ -77,6 +77,7 @@ export default function ActiveRide() {
   const [realtimeError, setRealtimeError] = useState('')
   const [driverLocation, setDriverLocation] = useState(null)
   const [isRestoringRide, setIsRestoringRide] = useState(!isDemoMode)
+  const dispatchStartedRideIdRef = useRef(null)
   const retryingRideIdRef = useRef(null)
   const displayedRideStatus = isDemoMode ? rideStatus : ride?.status ?? rideStatus
   const showDriverDetails = isDemoMode && DRIVER_ASSIGNED_STATUSES.has(displayedRideStatus)
@@ -89,8 +90,10 @@ export default function ActiveRide() {
 
   useEffect(() => {
     if (isDemoMode || !ride?.id || rideStatus !== 'requested') return undefined
+    if (dispatchStartedRideIdRef.current === ride.id) return undefined
 
     let cancelled = false
+    dispatchStartedRideIdRef.current = ride.id
     getDispatchService().requestRideDispatch(ride.id)
       .then((dispatchedRide) => {
         if (cancelled) return
@@ -104,6 +107,7 @@ export default function ActiveRide() {
         setRideStatus(dispatchedRide.status)
       })
       .catch((error) => {
+        dispatchStartedRideIdRef.current = null
         if (!cancelled) setDispatchError(error.message || 'La recherche d’un chauffeur n’a pas pu démarrer.')
       })
 
