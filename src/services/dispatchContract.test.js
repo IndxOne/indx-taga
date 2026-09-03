@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 const migration = readFileSync(resolve(process.cwd(), 'supabase/migrations/003_dispatch.sql'), 'utf8')
 const compositeFix = readFileSync(resolve(process.cwd(), 'supabase/migrations/004_dispatch_composite_fix.sql'), 'utf8')
+const driverRealtime = readFileSync(resolve(process.cwd(), 'supabase/migrations/009_driver_dispatch_realtime.sql'), 'utf8')
 
 describe('contrat backend Dispatch — Lot 3', () => {
   it('définit la disponibilité et les prérequis serveur', () => {
@@ -50,5 +51,15 @@ describe('contrat backend Dispatch — Lot 3', () => {
     expect(compositeFix).toContain('perform public.create_next_ride_dispatch_offer(p_ride_id)')
     expect(compositeFix).not.toContain('into ignored_offer')
     expect(compositeFix).toContain('create or replace function public.request_ride_dispatch(p_ride_id uuid)')
+  })
+
+  it('expose au chauffeur son offre courante et publie les nouvelles offres', () => {
+    expect(driverRealtime).toContain('create or replace function public.get_driver_active_offer()')
+    expect(driverRealtime).toContain("o.driver_id = current_user_id")
+    expect(driverRealtime).toContain("o.status = 'offered'")
+    expect(driverRealtime).toContain('to_jsonb(offer_row)')
+    expect(driverRealtime).toContain('alter publication supabase_realtime add table public.ride_dispatch_offers')
+    expect(driverRealtime).toContain('alter table public.ride_dispatch_offers replica identity full')
+    expect(driverRealtime).toContain('grant execute on function public.get_driver_active_offer() to authenticated')
   })
 })

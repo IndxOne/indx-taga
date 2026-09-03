@@ -74,6 +74,28 @@ describe('SupabaseRideRealtimeService', () => {
     expect(rideQuery.limit).toHaveBeenCalledWith(1)
   })
 
+  it('récupère l’offre active du chauffeur avec la course associée', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        offer: {
+          id: 'offer-1', ride_id: 'ride-1', driver_id: 'driver-1', status: 'offered',
+          offered_at: '2026-09-02T10:00:00.000Z', expires_at: '2026-09-02T10:00:30.000Z',
+          responded_at: null, created_at: '2026-09-02T10:00:00.000Z',
+        },
+        ride: { ...rideRow, status: 'searching', driver_id: null },
+      },
+      error: null,
+    })
+    const service = new SupabaseRideRealtimeService({ client: { rpc } })
+
+    await expect(service.getActiveDriverOffer()).resolves.toMatchObject({
+      id: 'offer-1',
+      rideId: 'ride-1',
+      ride: { id: 'ride-1', status: 'searching' },
+    })
+    expect(rpc).toHaveBeenCalledWith('get_driver_active_offer')
+  })
+
   it('abonne le passager aux changements de course et de position', async () => {
     const handlers = []
     const unsubscribe = vi.fn()
@@ -103,6 +125,33 @@ describe('SupabaseRideRealtimeService', () => {
     handlers[1].handler({ eventType: 'UPDATE', new: { ride_id: 'ride-1', driver_id: 'driver-1', latitude: 5.3, longitude: -4, recorded_at: '2026-09-02T10:01:00.000Z' } })
     expect(onRideChange).toHaveBeenCalledWith(expect.objectContaining({ status: 'assigned' }))
     expect(onDriverLocationChange).toHaveBeenCalledWith(expect.objectContaining({ lat: 5.3, lng: -4 }))
+
+    stop()
+    expect(unsubscribe).toHaveBeenCalled()
+  })
+
+  it('abonne le chauffeur aux changements d’offres', async () => {
+    const handlers = []
+    const unsubscribe = vi.fn()
+    const channel = {
+      on: vi.fn((_event, filter, handler) => {
+        handlers.push({ filter, handler })
+        return channel
+      }),
+      subscribe: vi.fn(() => channel),
+      unsubscribe,
+    }
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null })
+    const onOfferChange = vi.fn()
+    const service = new SupabaseRideRealtimeService({ client: { channel: vi.fn(() => channel), rpc } })
+
+    const stop = service.subscribeToDriverOffers({ onOfferChange })
+    await Promise.resolve()
+    expect(handlers[0].filter).toMatchObject({ table: 'ride_dispatch_offers', event: '*' })
+
+    handlers[0].handler({ new: { id: 'offer-1' } })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(onOfferChange).toHaveBeenCalledWith(null)
 
     stop()
     expect(unsubscribe).toHaveBeenCalled()

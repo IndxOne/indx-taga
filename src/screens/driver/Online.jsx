@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
 import MapProvider from '../../components/MapProvider'
@@ -7,6 +7,7 @@ import ToggleSwitch from '../../components/ToggleSwitch'
 import { DRIVER_NAV_ITEMS, ROUTES } from '../../navigation/routes'
 import Icon from '../../components/Icon'
 import { getDispatchService } from '../../services/dispatchService'
+import { getRideRealtimeService } from '../../services/rideRealtimeService'
 import { isDemoMode } from '../../services/runtimeConfig'
 
 export default function Online() {
@@ -18,7 +19,37 @@ export default function Online() {
   const driverRidesToday = useAppStore((state) => state.driverRidesToday)
   const driverHoursOnline = useAppStore((state) => state.driverHoursOnline)
   const [availabilityError, setAvailabilityError] = useState('')
+  const [offerError, setOfferError] = useState('')
   const [isUpdatingAvailability, setIsUpdatingAvailability] = useState(false)
+  const openedOfferIdRef = useRef(null)
+
+  useEffect(() => {
+    if (isDemoMode) return undefined
+
+    let active = true
+    const openOffer = (offer) => {
+      if (!active || offer?.status !== 'offered' || !offer.ride || openedOfferIdRef.current === offer.id) return
+      openedOfferIdRef.current = offer.id
+      setOfferError('')
+      navigate(ROUTES.driverIncomingRequest, { state: { offerId: offer.id } })
+    }
+    const realtime = getRideRealtimeService()
+    const unsubscribe = realtime.subscribeToDriverOffers({
+      onOfferChange: openOffer,
+      onError: (error) => {
+        if (active) setOfferError(error.message || 'Les nouvelles demandes ne peuvent pas être reçues.')
+      },
+    })
+
+    realtime.getActiveDriverOffer().then(openOffer).catch((error) => {
+      if (active) setOfferError(error.message || 'Les nouvelles demandes ne peuvent pas être reçues.')
+    })
+
+    return () => {
+      active = false
+      unsubscribe?.()
+    }
+  }, [navigate])
 
   const handleAvailabilityChange = async (nextAvailable) => {
     if (isUpdatingAvailability) return
@@ -92,9 +123,15 @@ export default function Online() {
           </p>
         )}
 
+        {offerError && (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700" role="alert">
+            {offerError}
+          </p>
+        )}
+
         {!isDemoMode && (
           <p className="text-[10px] leading-4 text-gray-400" role="status" aria-live="polite">
-            {isUpdatingAvailability ? 'Synchronisation de ta disponibilité…' : 'La disponibilité est contrôlée par le serveur.'}
+            {isUpdatingAvailability ? 'Synchronisation de ta disponibilité…' : 'En attente de nouvelles demandes. La disponibilité est contrôlée par le serveur.'}
           </p>
         )}
 

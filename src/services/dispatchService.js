@@ -32,10 +32,18 @@ function normalizeRide(row) {
   return {
     id: value.id,
     passengerId: value.passenger_id,
+    pickup: { label: value.pickup_label, lat: value.pickup_lat, lng: value.pickup_lng },
+    destination: { label: value.destination_label, lat: value.destination_lat, lng: value.destination_lng },
+    pickupLabel: value.pickup_label,
+    dropoffLabel: value.destination_label,
+    rideType: value.ride_type,
+    scheduledAt: value.scheduled_at,
     driverId: value.driver_id || null,
     status: value.status,
+    estimatedPrice: value.estimated_price,
     assignedAt: value.assigned_at || null,
     dispatchDeadlineAt: value.dispatch_deadline_at || null,
+    createdAt: value.created_at,
     updatedAt: value.updated_at || null,
   }
 }

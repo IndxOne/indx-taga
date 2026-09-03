@@ -61,6 +61,26 @@ function normalizeLocation(row) {
   }
 }
 
+function normalizeOffer(response) {
+  const offer = response?.offer
+  const ride = response?.ride
+  if (!offer?.id || !offer.ride_id || !ride?.id || ride.id !== offer.ride_id || offer.status !== 'offered') {
+    throw realtimeError('L’offre chauffeur reçue par le backend est invalide.', 'invalid_realtime_response')
+  }
+
+  return {
+    id: offer.id,
+    rideId: offer.ride_id,
+    driverId: offer.driver_id,
+    status: offer.status,
+    offeredAt: offer.offered_at,
+    expiresAt: offer.expires_at,
+    respondedAt: offer.responded_at || null,
+    createdAt: offer.created_at,
+    ride: normalizeRide(ride),
+  }
+}
+
 export function isFreshDriverLocation(location, { now = Date.now(), maxAgeMs = DRIVER_LOCATION_MAX_AGE_MS } = {}) {
   if (!location?.recordedAt || !Number.isFinite(maxAgeMs) || maxAgeMs < 0) return false
   const recordedAt = Date.parse(location.recordedAt)
@@ -107,6 +127,12 @@ export class SupabaseRideRealtimeService {
       .maybeSingle()
     if (error) throw error
     return data ? normalizeRide(data) : null
+  }
+
+  async getActiveDriverOffer() {
+    const { data, error } = await (await this.getClient()).rpc('get_driver_active_offer')
+    if (error) throw error
+    return data ? normalizeOffer(data) : null
   }
 
   async getDriverLocation(rideId, { now = Date.now(), maxAgeMs = DRIVER_LOCATION_MAX_AGE_MS } = {}) {
@@ -199,6 +225,48 @@ export class SupabaseRideRealtimeService {
       if (channel) void channel.unsubscribe()
     }
   }
+
+  subscribeToDriverOffers({ onOfferChange, onError } = {}) {
+    let channel
+    let active = true
+
+    const refreshOffer = async () => {
+      try {
+        const offer = await this.getActiveDriverOffer()
+        if (active) onOfferChange?.(offer)
+      } catch (error) {
+        if (active) onError?.(error)
+      }
+    }
+
+    const subscribe = async () => {
+      try {
+        const client = await this.getClient()
+        if (!active) return
+        channel = client
+          .channel('taga:driver:offers')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'ride_dispatch_offers' },
+            () => { void refreshOffer() },
+          )
+          .subscribe((status, error) => {
+            if (!active) return
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || error) {
+              onError?.(error || realtimeError('La réception des offres chauffeur est indisponible.', 'realtime_channel_error'))
+            }
+          })
+      } catch (error) {
+        if (active) onError?.(error)
+      }
+    }
+
+    void subscribe()
+    return () => {
+      active = false
+      if (channel) void channel.unsubscribe()
+    }
+  }
 }
 
 export class DemoRideRealtimeService {
@@ -210,11 +278,19 @@ export class DemoRideRealtimeService {
     return null
   }
 
+  async getActiveDriverOffer() {
+    return null
+  }
+
   async getDriverLocation() {
     return null
   }
 
   subscribeToRide() {
+    return () => {}
+  }
+
+  subscribeToDriverOffers() {
     return () => {}
   }
 }
@@ -237,4 +313,4 @@ export function resetRideRealtimeServiceForTests() {
   service = undefined
 }
 
-export { normalizeLocation as normalizeDriverLocation, normalizeRide as normalizeRealtimeRide }
+export { normalizeLocation as normalizeDriverLocation, normalizeOffer as normalizeDriverOffer, normalizeRide as normalizeRealtimeRide }

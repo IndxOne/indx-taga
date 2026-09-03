@@ -41,9 +41,12 @@ Les migrations `007_dispatch_offer_cancellation.sql` puis
 `008_cancel_ride_search.sql` doivent être appliquées dans cet ordre après la
 migration 006.
 
-La publication Realtime porte sur `rides` et `driver_locations`. Il faut
-appliquer la migration dans le projet Supabase de recette avant de tester une
-position réelle.
+La publication Realtime porte sur `rides`, `driver_locations` et
+`ride_dispatch_offers`. La migration `009_driver_dispatch_realtime.sql` ajoute
+la réception des offres côté chauffeur et la RPC sécurisée
+`get_driver_active_offer()`, qui renvoie uniquement l'offre du chauffeur
+connecté avec sa course associée. Il faut appliquer les migrations dans le
+projet Supabase de recette avant de tester une offre réelle.
 
 ## Contrat frontend réutilisable
 
@@ -63,6 +66,8 @@ position en attente. En mode démo, aucune écriture Supabase n'est effectuée.
   passager dans un statut encore actif ou en attente de nouvelle tentative ;
 - `getDriverLocation(rideId)` ;
 - `subscribeToRide(rideId, handlers)`.
+- `getActiveDriverOffer()` ;
+- `subscribeToDriverOffers(handlers)`.
 
 À l’ouverture de l’écran de course active, le client appelle d’abord
 `getActiveRide()`. Le résultat serveur devient la source du `ride_id`, puis le
@@ -85,8 +90,8 @@ implémentation sans modifier les écrans consommateurs.
 
 ## Limites connues
 
-Le parcours chauffeur réel ne dispose pas encore d'une interface de réception
-d'offre/affectation complète : `DriverLocationTracker` reste donc inactif tant
-qu'une course réelle avec un `ride_id` et un statut actif n'est pas fournie à
-l'écran chauffeur. Ce lot prépare le contrat et le suivi ; il ne fabrique pas
-une affectation côté frontend.
+Le parcours chauffeur réel affiche maintenant une offre active, la récupère
+après un refresh, écoute les nouvelles offres Realtime et répond via
+`respond_to_ride_offer`. Les montants, distances et notes restent affichés
+comme indisponibles tant que le backend ne les retourne pas ; le frontend ne
+fabrique pas ces valeurs.
