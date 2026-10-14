@@ -28,19 +28,24 @@ export function getRidePricing(value, rideType) {
   }
 }
 
-// Mode réel : aucun tarif de repli et aucun gain déduit côté frontend. Le prix
-// vient du serveur (null tant qu'il n'est pas fixé). Le gain chauffeur reste
-// null : aucun montant autoritatif n'est fourni par le backend, et la
-// commission n'est une règle ni du frontend ni de ce lot.
-export function getServerRidePricing(value) {
-  const amount = typeof value === 'number'
-    ? value
-    : typeof value === 'string' && value.trim() !== ''
-      ? Number(value)
+// Mode réel : contrat monétaire explicite, aucun champ fabriqué.
+// - estimatedPrice : estimation indicative fournie par le serveur (rides.estimated_price),
+//                    null tant qu'il n'en fournit pas. Ce n'est PAS un tarif final.
+// - finalPrice     : montant final ; null tant qu'aucun backend métier autoritatif n'en fournit
+//                    un (aucune colonne n'existe). Jamais copié depuis estimatedPrice.
+// - driverEarning  : gain chauffeur autoritatif ; null (la commission n'est pas une règle frontend).
+// - paymentStatus  : statut de paiement ; null tant qu'aucune transaction confirmée n'existe côté serveur.
+export function getServerRideMoney(estimatedPrice) {
+  const amount = typeof estimatedPrice === 'number'
+    ? estimatedPrice
+    : typeof estimatedPrice === 'string' && estimatedPrice.trim() !== ''
+      ? Number(estimatedPrice)
       : Number.NaN
 
-  if (!Number.isFinite(amount) || amount < 0) {
-    return { estimatedPrice: null, price: null, driverEarning: null }
+  return {
+    estimatedPrice: Number.isFinite(amount) && amount >= 0 ? amount : null,
+    finalPrice: null,
+    driverEarning: null,
+    paymentStatus: null,
   }
-  return { estimatedPrice: amount, price: amount, driverEarning: null }
 }

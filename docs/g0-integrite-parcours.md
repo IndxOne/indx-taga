@@ -37,9 +37,25 @@ Le client n'a toujours aucun `GRANT UPDATE` sur `rides`.
 | P1.4 | `getServerRidePricing` ne calcule plus de gain : `driverEarning` reste `null` en mode réel (« Gain non disponible »). Le calcul à 85 % n'existe que pour la démo (`getRidePricing`). |
 | P2 | `dispatchService.getDriverAvailability()` (RLS : profil propre). `Online` affiche « SYNCHRONISATION… » tant que le serveur n'a pas répondu, distingue hors ligne / en ligne / en course, bloque les bascules concurrentes (ref) et reste en « ÉTAT INCONNU » si la lecture échoue. Après clôture, le chauffeur revient `offline` (choix G0). |
 
+## G0.4 — création de course et montants
+**Création** : migration `012_create_ride_lockdown.sql` (non appliquée) — validation serveur stricte des coordonnées et révocation d'`EXECUTE` sur `create_ride` aux clients. Détails, limites et réactivation : [`backend-rides.md`](./backend-rides.md#verrouillage-de-create_ride-012). La provenance d'une adresse n'est pas prouvable par le client ; seule la désactivation garantit qu'aucune commande réelle n'est créée.
+
+**Montants** — quatre notions distinctes, jamais déduites l'une de l'autre :
+
+| Champ | Source | Valeur actuelle en réel |
+|---|---|---|
+| `estimatedPrice` | `rides.estimated_price` (estimation serveur) | nombre fini ≥ 0 si fourni, sinon `null` |
+| `finalPrice` | backend métier autoritatif (inexistant) | toujours `null` |
+| `driverEarning` | backend autoritatif (inexistant) | toujours `null` |
+| `paymentStatus` | preuve de transaction serveur (inexistante) | toujours `null` |
+
+Le champ historique `price` n'existe plus en mode réel (il restait une copie de l'estimation). Interface réelle : « Estimation indicative » quand elle existe, « Montant final non disponible », « Paiement : statut non disponible », « Gain non disponible ». Jamais « Payé », « Total payé » ni un débit. Démo : calculs et libellés fictifs conservés. Aucune migration financière.
+
 ## Tests
 - `npm test` — unitaires/écrans (Vitest).
 - `supabase/tests/run-local.sh` — rejoue les migrations 001→011, puis `*.test.sql` et `*.test.sh`, sur une **base PostgreSQL jetable** (jamais Supabase distant) :
   - `011_driver_ride_transitions.test.sql` : tests séquentiels (autorisations, transitions illégales, idempotence séquentielle, historique, libération, isolation de lecture type RLS).
   - `011_concurrency.test.sh` : vraie concurrence (plusieurs sessions `psql`, la session A garde le verrou ; les autres doivent attendre). Retirer `for update` de la RPC le fait échouer (S1).
+  - `012_create_ride_lockdown.test.sql` : ACL (public/anon/authenticated sans EXECUTE), appels directs refusés sans course ni historique, validation exhaustive des points (corps appelé par le propriétaire), rôles, réexécution de 012, réactivation simulée puis annulée.
+  - `staging_seed.test.sh` : le dispositif de recette isolé fonctionne pour le propriétaire, refuse sans confirmation, n'expose rien aux clients, et la course injectée suit les transitions 011.
 - **Non couvert ici (staging requis)** : RLS réelle via PostgREST, JWT Supabase, Realtime, droits `authenticated` sur un vrai projet.

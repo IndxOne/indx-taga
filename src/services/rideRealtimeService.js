@@ -1,6 +1,6 @@
 import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
-import { getServerRidePricing } from './rideFare'
+import { getServerRideMoney } from './rideFare'
 
 const ACTIVE_RIDE_STATUSES = new Set(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'completed', 'cancelled', 'no_driver'])
 const RESTORABLE_RIDE_STATUSES = Object.freeze(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'no_driver'])
@@ -26,7 +26,7 @@ function normalizeRide(row) {
   if (!value?.id || !ACTIVE_RIDE_STATUSES.has(value.status)) {
     throw realtimeError('La course reçue en temps réel est invalide.', 'invalid_realtime_response')
   }
-  const pricing = getServerRidePricing(value.estimated_price)
+  const money = getServerRideMoney(value.estimated_price)
   return {
     id: value.id,
     passengerId: value.passenger_id,
@@ -38,7 +38,7 @@ function normalizeRide(row) {
     rideType: value.ride_type,
     scheduledAt: value.scheduled_at,
     status: value.status,
-    ...pricing,
+    ...money,
     assignedAt: value.assigned_at || null,
     dispatchDeadlineAt: value.dispatch_deadline_at || null,
     createdAt: value.created_at,

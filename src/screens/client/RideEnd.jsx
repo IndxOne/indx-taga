@@ -5,6 +5,7 @@ import AmountTile from '../../components/AmountTile'
 import RatingStars from '../../components/RatingStars'
 import PrimaryButton from '../../components/PrimaryButton'
 import { getRidePricing } from '../../services/rideFare'
+import RideAmounts from '../../components/RideAmounts'
 import { isDemoMode } from '../../services/runtimeConfig'
 import { getRideRealtimeService } from '../../services/rideRealtimeService'
 import { classifyRideReadError } from '../../services/rideErrors'
@@ -183,9 +184,7 @@ function RealRideEnd() {
         <p className="mt-1 text-xs text-gray-500">{ride.pickupLabel} → {ride.dropoffLabel}</p>
       </div>
       <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow-sm" role="status">
-        {Number.isFinite(ride.price)
-          ? <AmountTile label="Montant de la course" amount={ride.price} size="xl" />
-          : <p className="text-xs leading-5">Le montant et le paiement ne sont pas encore activés : aucun débit n’a été effectué.</p>}
+        <RideAmounts ride={ride} />
       </div>
       <div className="mt-auto">
         <PrimaryButton onClick={goHome}>Terminer</PrimaryButton>

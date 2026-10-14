@@ -42,8 +42,9 @@ describe('SupabaseDispatchService', () => {
       status: 'searching',
       driverId: null,
       estimatedPrice: null,
-      price: null,
+      finalPrice: null,
       driverEarning: null,
+      paymentStatus: null,
     })
     expect(rpc).toHaveBeenCalledWith('request_ride_dispatch', { p_ride_id: 'ride-1' })
   })
@@ -114,8 +115,10 @@ describe('DemoDispatchService', () => {
       id: 'ride-1',
       status: 'arriving',
       driverId: 'driver-1',
-      price: null,
+      estimatedPrice: null,
+      finalPrice: null,
       driverEarning: null,
+      paymentStatus: null,
     })
     expect(rpc).toHaveBeenCalledWith('advance_driver_ride', { p_ride_id: 'ride-1', p_to_status: 'arriving' })
   })

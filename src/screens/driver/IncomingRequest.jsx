@@ -208,7 +208,7 @@ export default function IncomingRequest() {
 
   const ride = isDemoMode ? storeRide : offer.ride
   // Réel : montants serveur uniquement (null tant que le prix n'est pas fixé).
-  const totalAmount = ride.price
+  const totalAmount = isDemoMode ? ride.price : ride.estimatedPrice
   const driverAmount = ride.driverEarning
   const pickupLabel = ride.pickupLabel || ride.pickup?.label || 'Prise en charge'
   const destinationLabel = ride.dropoffLabel || ride.destination?.label || 'Destination'
@@ -233,7 +233,9 @@ export default function IncomingRequest() {
             <p className="text-xs text-gray-400">TU GAGNES</p>
             <p className="font-bold text-3xl">{formatAmount(driverAmount, EARNING_UNAVAILABLE)}</p>
             <p className="text-[10px] text-gray-400">
-              Course total : {formatAmount(totalAmount)}{isDemoMode ? ' · Net : 85%' : ''}
+              {isDemoMode
+                ? `Course total : ${formatAmount(totalAmount)} · Net : 85%`
+                : Number.isFinite(totalAmount) ? `Estimation indicative : ${formatAmount(totalAmount)}` : 'Estimation non disponible'}
             </p>
           </div>
           <div className="flex h-16 w-16 flex-col items-center justify-center rounded-full border-4 border-taga-mango font-bold text-taga-navy">

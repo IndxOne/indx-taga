@@ -26,8 +26,12 @@ createRide({
 })
 ```
 
-Les coordonnées restent facultatives tant que la cartographie réelle n'est pas
-livrée. Les libellés sont obligatoires.
+> **Mise à jour G0.4 (migration 012, non appliquée).** Les coordonnées ne sont
+> plus facultatives côté serveur et `create_ride` n'est plus exécutable par les
+> clients : voir la section « Verrouillage de create_ride (012) » ci-dessous.
+> Le texte d'origine est conservé pour l'historique : « Les coordonnées restent
+> facultatives tant que la cartographie réelle n'est pas livrée. Les libellés sont
+> obligatoires. »
 
 Réponse :
 
@@ -57,6 +61,60 @@ Réponse :
   rôle `authenticated` ;
 - un passager ne lit que ses propres courses et leur historique ;
 - aucune transition de statut n'est exposée dans ce lot.
+
+## Verrouillage de create_ride (012)
+
+`supabase/migrations/012_create_ride_lockdown.sql` — additive, **non appliquée**.
+Elle redéfinit `create_ride` (même signature, même identité `auth.uid()`, mêmes
+restrictions de rôle, `SECURITY DEFINER`, `search_path` vide) avec deux protections
+indépendantes :
+
+1. **Validation serveur des points.** Libellé texte non vide (≤ 240), `lat` et `lng`
+   de type JSON *numérique* (refus de l'absence, `null`, texte comme `"NaN"` ou
+   `"5.3"`, booléen, objet, tableau), `-90 ≤ lat ≤ 90`, `-180 ≤ lng ≤ 180`, et le
+   couple `(0,0)` est refusé. jsonb n'admet ni `NaN` ni `Infinity`. Erreur `22023`.
+2. **Désactivation des commandes réelles.** `EXECUTE` est révoqué à `PUBLIC`, `anon`
+   et `authenticated` (privilèges hérités compris) sur `create_ride` et sur la
+   fonction interne `taga_normalize_ride_point`. Un appel direct renvoie `42501`
+   (*permission denied for function create_ride*) et ne crée ni course ni historique.
+
+**Ce que la validation ne prouve pas.** Des coordonnées complètes et bien formées ne
+prouvent pas qu'une adresse est authentique : un client peut envoyer une position
+plausible mais fausse. Aucun champ `source` fourni par le client n'est une preuve de
+provenance (le champ `source` utilisé en React est une garde d'interface, ignorée
+par le serveur). C'est pourquoi la désactivation (2) est la vraie garantie, tant
+qu'aucune résolution d'adresse n'est faite côté serveur.
+
+`service_role` (clé serveur, jamais embarquée dans un client) n'est pas modifié par
+la migration. Aucun accès de contournement n'est ajouté.
+
+### Réactivation (gate distinct, hors de ce lot)
+Réversible par une migration ultérieure (013), seulement quand **toutes** les
+conditions suivantes sont réunies :
+
+1. une source d'adresse **vérifiée côté serveur** existe (par exemple une Edge
+   Function ou RPC qui résout l'adresse auprès d'un fournisseur approuvé, ou un jeton
+   de sélection signé par le serveur) ; aucun fournisseur n'est choisi ni implémenté ici ;
+2. la migration 013 rouvre l'accès par `grant execute on function public.create_ride(...) to authenticated`
+   (ou crée la nouvelle RPC et révoque l'ancienne) après revue de sécurité ;
+3. la matrice de recette passe sur un Supabase isolé : `anon` refusé, chauffeur et
+   compte suspendu refusés, passager actif accepté, coordonnées invalides refusées,
+   RLS de lecture intacte, aucune course créée après refus ;
+4. le verrou d'interface est levé (`Home`, `Estimate`, `TRUSTED_POINT_SOURCES`) ;
+5. la tarification est décidée (un lot séparé : voir « Montants » dans
+   [`g0-integrite-parcours.md`](./g0-integrite-parcours.md)).
+
+Pour annuler une réactivation : rejouer le `revoke all ... from public, anon, authenticated`
+(idempotent).
+
+### Recette sans commande cliente
+Pour exercer dispatch, transitions 011 et récapitulatif avant la sélection d'adresse
+fiable, la course de test est injectée **par le propriétaire de la base de recette**
+avec [`supabase/staging/seed_test_ride.sql`](../supabase/staging/seed_test_ride.sql).
+Ce script n'est pas une migration : il ne crée aucune fonction, aucun `GRANT`, aucune
+RPC joignable par `anon` ou `authenticated`, exige `confirm_isolated_staging=yes` et un
+rôle superuser, et ne touche à aucun secret. Les coordonnées qu'il insère sont des
+valeurs de test, pas des adresses authentifiées.
 
 ## FlutterFlow
 

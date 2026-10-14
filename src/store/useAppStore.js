@@ -63,8 +63,9 @@ export const REAL_RIDE = {
   distanceKm: null,
   durationMin: null,
   estimatedPrice: null,
-  price: null,
+  finalPrice: null,
   driverEarning: null,
+  paymentStatus: null,
 }
 
 export const REAL_PROFILE = {

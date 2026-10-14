@@ -26,8 +26,9 @@ const completedRide = {
   dropoffLabel: 'Plateau',
   status: 'completed',
   estimatedPrice: null,
-  price: null,
+  finalPrice: null,
   driverEarning: null,
+  paymentStatus: null,
 }
 
 const renderAt = (path) => render(
@@ -55,18 +56,38 @@ describe('RideEnd — récapitulatif réel d’une course terminée', () => {
     expect(await screen.findByText('Course terminée')).toBeTruthy()
     expect(mocks.realtime.getCompletedRide).toHaveBeenCalledWith('ride-1')
     expect(screen.getByText('Ma position → Plateau')).toBeTruthy()
-    expect(screen.getByRole('status').textContent).toMatch(/aucun débit/)
-    for (const fake of [/Total payé/, /Orange Money/, /Mamadou/, /TGA-8421/, /Reçu PDF/]) {
+    // Aucune estimation ni prix final : on le dit, sans rien annoncer sur un débit.
+    expect(screen.getByText('Montant final non disponible.')).toBeTruthy()
+    expect(screen.getByText('Paiement : statut non disponible.')).toBeTruthy()
+    expect(screen.queryByText('Estimation indicative')).toBeNull()
+    for (const fake of [/Total payé/, /\bPayé\b/, /débit/i, /Orange Money/, /Mamadou/, /TGA-8421/, /Reçu PDF/]) {
       expect(screen.queryByText(fake)).toBeNull()
     }
   })
 
-  it('affiche le montant uniquement s’il vient du serveur', async () => {
-    mocks.realtime.getCompletedRide.mockResolvedValue({ ...completedRide, price: 3250 })
+  it('estimated_price = 3250 sans prix final : « Estimation indicative », jamais un total, un gain ou un paiement', async () => {
+    mocks.realtime.getCompletedRide.mockResolvedValue({ ...completedRide, estimatedPrice: 3250 })
     renderAt('/client/ride-end/ride-1')
 
-    expect(await screen.findByText(/3.?250/)).toBeTruthy()
-    expect(document.body.textContent).not.toMatch(/2.?763/)
+    expect(await screen.findByText('Estimation indicative')).toBeTruthy()
+    expect(screen.getByText(/3.?250/)).toBeTruthy()
+    expect(screen.getByText('Montant final non disponible.')).toBeTruthy()
+    expect(screen.getByText('Paiement : statut non disponible.')).toBeTruthy()
+    expect(screen.queryByText('Montant final')).toBeNull()
+    for (const invented of [/2.?763/, /Total payé/, /\bPayé\b/, /Montant de la course/, /débit/i]) {
+      expect(document.body.textContent).not.toMatch(invented)
+    }
+  })
+
+  it('montant final affiché seulement quand un backend autoritatif le fournit', async () => {
+    mocks.realtime.getCompletedRide.mockResolvedValue({ ...completedRide, estimatedPrice: 3250, finalPrice: 3400 })
+    renderAt('/client/ride-end/ride-1')
+
+    expect(await screen.findByText('Montant final')).toBeTruthy()
+    expect(screen.getByText(/3.?400/)).toBeTruthy()
+    expect(screen.queryByText('Estimation indicative')).toBeNull()
+    expect(screen.queryByText('Montant final non disponible.')).toBeNull()
+    expect(screen.getByText('Paiement : statut non disponible.')).toBeTruthy()
   })
 
   it('course introuvable (absente ou filtrée par la RLS) : état dédié, retour accueil', async () => {

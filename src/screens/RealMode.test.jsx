@@ -142,7 +142,7 @@ describe('mode réel — aucune donnée fictive présentée comme réelle', () =
     const pickup = { label: 'Ma position', lat: 5.3, lng: -4, source: 'device_gps' }
     const destination = { label: 'Plateau', lat: 5.32, lng: -4.02, source: 'address_selection' }
     useAppStore.setState({ ride: { ...REAL_RIDE, pickup, destination } })
-    mocks.ride.createRide.mockResolvedValue({ id: 'ride-1', status: 'requested', estimatedPrice: null, price: null, driverEarning: null })
+    mocks.ride.createRide.mockResolvedValue({ id: 'ride-1', status: 'requested', estimatedPrice: null, finalPrice: null, driverEarning: null, paymentStatus: null })
     renderScreen(<Estimate />)
 
     expect(screen.getByText('Ma position → Plateau')).toBeTruthy()
@@ -152,7 +152,7 @@ describe('mode réel — aucune donnée fictive présentée comme réelle', () =
 
     await waitFor(() => expect(mocks.ride.createRide).toHaveBeenCalledTimes(1))
     expect(mocks.ride.createRide).toHaveBeenCalledWith({ pickup, destination, ride_type: 'go' })
-    expect(useAppStore.getState().ride).toMatchObject({ id: 'ride-1', price: null, driverEarning: null })
+    expect(useAppStore.getState().ride).toMatchObject({ id: 'ride-1', estimatedPrice: null, finalPrice: null, driverEarning: null, paymentStatus: null })
   })
 })
 

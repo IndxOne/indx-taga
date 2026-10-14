@@ -45,8 +45,9 @@ describe('SupabaseRideService', () => {
       passengerId: 'passenger-1',
       status: 'requested',
       estimatedPrice: null,
-      price: null,
+      finalPrice: null,
       driverEarning: null,
+      paymentStatus: null,
     })
     expect(rpc).toHaveBeenCalledWith('create_ride', {
       // La provenance reste côté client : seule la forme libellé + coordonnées part à la RPC.
@@ -57,15 +58,15 @@ describe('SupabaseRideService', () => {
     })
   })
 
-  it('conserve le prix serveur sans appliquer de tarif de repli', async () => {
+  it('estimated_price = 3250 : estimation seule, jamais un prix final, un gain ou un paiement', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: { ...databaseRide, estimated_price: 3250 }, error: null })
     const service = new SupabaseRideService({ client: { rpc } })
 
-    await expect(service.createRide(validInput)).resolves.toMatchObject({
-      estimatedPrice: 3250,
-      price: 3250,
-      driverEarning: null,
-    })
+    const ride = await service.createRide(validInput)
+
+    expect(ride).toMatchObject({ estimatedPrice: 3250, finalPrice: null, driverEarning: null, paymentStatus: null })
+    expect(ride).not.toHaveProperty('price')
+    expect(JSON.stringify(ride)).not.toContain('2763')
   })
 
   it('refuse sans appel RPC les points absents, incomplets, invalides ou de provenance non fiable', async () => {
@@ -104,6 +105,24 @@ describe('SupabaseRideService', () => {
     })
 
     await expect(service.createRide(validInput)).rejects.toEqual(backendError)
+  })
+
+  it('migration 012 : RPC révoquée aux clients → erreur explicite « création désactivée »', async () => {
+    const postgrestError = { code: '42501', message: 'permission denied for function create_ride' }
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: postgrestError })
+    const service = new SupabaseRideService({ client: { rpc } })
+
+    await expect(service.createRide(validInput)).rejects.toMatchObject({
+      code: 'ride_creation_disabled',
+      message: expect.stringMatching(/création de course réelle est désactivée/),
+    })
+  })
+
+  it('un autre refus 42501 (rôle) n’est pas confondu avec la désactivation', async () => {
+    const roleError = { code: '42501', message: 'Seul un passager actif peut créer une course.' }
+    const service = new SupabaseRideService({ client: { rpc: vi.fn().mockResolvedValue({ data: null, error: roleError }) } })
+
+    await expect(service.createRide(validInput)).rejects.toEqual(roleError)
   })
 
   it('laisse le backend refuser une session absente ou un rôle non autorisé', async () => {

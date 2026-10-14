@@ -74,8 +74,9 @@ describe('SupabaseRideRealtimeService', () => {
       status: 'searching',
       driverId: null,
       estimatedPrice: null,
-      price: null,
+      finalPrice: null,
       driverEarning: null,
+      paymentStatus: null,
     })
     expect(rideQuery.in).toHaveBeenCalledWith('status', ['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'no_driver'])
     expect(rideQuery.order).toHaveBeenCalledWith('created_at', { ascending: false })
@@ -90,7 +91,8 @@ describe('SupabaseRideRealtimeService', () => {
       id: 'ride-1',
       status: 'arrived',
       driverId: 'driver-1',
-      price: null,
+      finalPrice: null,
+      driverEarning: null,
     })
     expect(rideQuery.not).toHaveBeenCalledWith('driver_id', 'is', null)
     expect(rideQuery.in).toHaveBeenCalledWith('status', ['assigned', 'arriving', 'arrived', 'in_progress'])

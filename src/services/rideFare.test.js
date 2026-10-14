@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getRidePricing, getServerRidePricing, normalizeRideFare } from './rideFare'
+import { getRidePricing, getServerRideMoney, normalizeRideFare } from './rideFare'
 
 describe('rideFare', () => {
   it('utilise le tarif de référence de chaque type quand le backend renvoie null', () => {
@@ -23,26 +23,28 @@ describe('rideFare', () => {
     expect(getRidePricing('  ', 'go')).toMatchObject({ price: 3200, driverEarning: 2720 })
   })
 
-  it('mode réel : aucun tarif de repli quand le serveur n’a pas fixé le prix', () => {
-    const unknown = { estimatedPrice: null, price: null, driverEarning: null }
-    expect(getServerRidePricing(null)).toEqual(unknown)
-    expect(getServerRidePricing(undefined)).toEqual(unknown)
-    expect(getServerRidePricing(Number.NaN)).toEqual(unknown)
-    expect(getServerRidePricing(-1)).toEqual(unknown)
-    expect(getServerRidePricing('  ')).toEqual(unknown)
-  })
-
-  it('mode réel : conserve un prix serveur valide, y compris zéro', () => {
-    expect(getServerRidePricing(3250)).toEqual({ estimatedPrice: 3250, price: 3250, driverEarning: null })
-    expect(getServerRidePricing('4000')).toMatchObject({ price: 4000 })
-    expect(getServerRidePricing(0)).toMatchObject({ price: 0 })
-  })
-
-  it('mode réel : le gain chauffeur n’est jamais déduit d’un pourcentage frontend', () => {
-    for (const price of [0, 1900, 3200, 3250, 4500, '3250']) {
-      expect(getServerRidePricing(price).driverEarning).toBeNull()
+  it('mode réel : aucun tarif de repli quand le serveur n’a pas fourni d’estimation', () => {
+    const unknown = { estimatedPrice: null, finalPrice: null, driverEarning: null, paymentStatus: null }
+    for (const value of [null, undefined, Number.NaN, -1, '  ', 'abc', Infinity, {}]) {
+      expect(getServerRideMoney(value)).toEqual(unknown)
     }
-    expect(JSON.stringify(getServerRidePricing(3250))).not.toContain('2763')
+  })
+
+  it('mode réel : estimation, prix final, gain et paiement sont quatre notions distinctes', () => {
+    expect(getServerRideMoney(3250)).toEqual({ estimatedPrice: 3250, finalPrice: null, driverEarning: null, paymentStatus: null })
+    expect(getServerRideMoney('4000')).toMatchObject({ estimatedPrice: 4000, finalPrice: null })
+    expect(getServerRideMoney(0)).toMatchObject({ estimatedPrice: 0, finalPrice: null })
+    expect(getServerRideMoney(3250)).not.toHaveProperty('price')
+  })
+
+  it('mode réel : une estimation n’est jamais copiée en prix final, en gain ni en paiement', () => {
+    for (const estimate of [0, 1900, 3200, 3250, 4500, '3250']) {
+      const money = getServerRideMoney(estimate)
+      expect(money.finalPrice).toBeNull()
+      expect(money.driverEarning).toBeNull()
+      expect(money.paymentStatus).toBeNull()
+    }
+    expect(JSON.stringify(getServerRideMoney(3250))).not.toContain('2763')
   })
 
   it('démo : le calcul fictif du gain est conservé', () => {

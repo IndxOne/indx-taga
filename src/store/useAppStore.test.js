@@ -31,12 +31,13 @@ describe('store — séparation démo / réel', () => {
     const { useAppStore } = await loadStore(false)
     const { ride } = useAppStore.getState()
 
-    expect(ride).toMatchObject({ id: null, price: null, estimatedPrice: null, driverEarning: null, distanceKm: null, durationMin: null })
+    expect(ride).toMatchObject({ id: null, estimatedPrice: null, finalPrice: null, driverEarning: null, paymentStatus: null, distanceKm: null, durationMin: null })
+    expect(ride).not.toHaveProperty('price')
   })
 
   it('mode réel : resetRide et logout vident la course du compte précédent', async () => {
     const { useAppStore, REAL_RIDE } = await loadStore(false)
-    useAppStore.setState({ ride: { ...REAL_RIDE, id: 'ride-1', price: 3200 }, rideStatus: 'completed' })
+    useAppStore.setState({ ride: { ...REAL_RIDE, id: 'ride-1', estimatedPrice: 3200 }, rideStatus: 'completed' })
 
     useAppStore.getState().resetRide()
     expect(useAppStore.getState().ride.id).toBeNull()

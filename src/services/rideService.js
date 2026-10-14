@@ -1,6 +1,6 @@
 import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
-import { getRidePricing, getServerRidePricing } from './rideFare'
+import { getRidePricing, getServerRideMoney } from './rideFare'
 import { describeRidePointProblem, toRpcPoint } from './ridePoints'
 
 export const RIDE_TYPES = Object.freeze(['go', 'partage', 'family', 'confort'])
@@ -75,10 +75,23 @@ function normalizeCreateInput(input = {}, { trusted = false } = {}) {
   }
 }
 
+// Migration 012 : EXECUTE sur create_ride est révoqué aux clients tant que la
+// sélection d'adresse fiable n'existe pas. PostgREST répond alors 42501 /
+// « permission denied for function create_ride ».
+function isRideCreationDisabled(error) {
+  return error?.code === '42501' && /permission denied for function create_ride/i.test(String(error.message ?? ''))
+}
+
+function rideCreationDisabledError() {
+  const error = new Error('La création de course réelle est désactivée : la sélection d’adresse fiable n’est pas encore disponible.')
+  error.code = 'ride_creation_disabled'
+  return error
+}
+
 function fromDatabaseRow(row) {
   const value = Array.isArray(row) ? row[0] : row
   if (!value?.id) throw new Error('La course créée n’a pas été retournée par le backend.')
-  const pricing = getServerRidePricing(value.estimated_price)
+  const money = getServerRideMoney(value.estimated_price)
 
   return {
     id: value.id,
@@ -88,7 +101,7 @@ function fromDatabaseRow(row) {
     rideType: value.ride_type,
     scheduledAt: value.scheduled_at,
     status: value.status,
-    ...pricing,
+    ...money,
     createdAt: value.created_at,
     updatedAt: value.updated_at,
   }
@@ -116,7 +129,7 @@ export class SupabaseRideService {
       p_ride_type: payload.ride_type,
       p_scheduled_at: payload.scheduled_at,
     })
-    if (error) throw error
+    if (error) throw isRideCreationDisabled(error) ? rideCreationDisabledError() : error
     return fromDatabaseRow(data)
   }
 

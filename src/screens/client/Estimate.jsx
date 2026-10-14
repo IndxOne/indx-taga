@@ -37,11 +37,12 @@ export default function Estimate() {
       const createdRide = await getRideService().createRide(isDemoMode
         ? { pickup: { label: ride.pickupLabel }, destination: { label: ride.dropoffLabel }, ride_type: selectedOption.id }
         : { pickup: ride.pickup, destination: ride.destination, ride_type: selectedOption.id })
-      // Réel : montants tels que renvoyés par le serveur (null si non fixés).
+      // Réel : montants tels que renvoyés par le serveur (null si non fournis), sans calcul client.
       const pricing = isDemoMode ? getRidePricing(createdRide.estimatedPrice, selectedOption.id) : {
         estimatedPrice: createdRide.estimatedPrice,
-        price: createdRide.price,
+        finalPrice: createdRide.finalPrice,
         driverEarning: createdRide.driverEarning,
+        paymentStatus: createdRide.paymentStatus,
       }
       setRide({
         ...ride,

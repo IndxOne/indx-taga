@@ -68,14 +68,15 @@ describe('IncomingRequest chauffeur en mode réel', () => {
   afterEach(() => cleanup())
 
   it('prix serveur de 3 250 F : le prix est affiché mais aucun gain de 2 763 F n’est calculé', async () => {
-    const pricedOffer = { ...offer, ride: { ...offer.ride, estimatedPrice: 3250, price: 3250, driverEarning: null } }
+    const pricedOffer = { ...offer, ride: { ...offer.ride, estimatedPrice: 3250, finalPrice: null, driverEarning: null, paymentStatus: null } }
     mocks.realtime.getActiveDriverOffer.mockResolvedValue(pricedOffer)
     render(<MemoryRouter><IncomingRequest /></MemoryRouter>)
 
-    await waitFor(() => expect(screen.getByText(/Course total : 3.?250 F/)).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(/Estimation indicative : 3.?250 F/)).toBeTruthy())
     expect(screen.getByText('Gain non disponible')).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/2.?763/)
     expect(document.body.textContent).not.toMatch(/85%/)
+    expect(document.body.textContent).not.toMatch(/Course total/)
   })
 
   it('charge et affiche l’offre courante du chauffeur', async () => {
@@ -86,7 +87,8 @@ describe('IncomingRequest chauffeur en mode réel', () => {
     // Prix non fixé par le serveur : aucun montant de repli affiché.
     expect(screen.queryByText(/2.?720 F/)).toBeNull()
     expect(screen.queryByText(/3.?200 F/)).toBeNull()
-    expect(screen.getByText(/Course total : Montant à confirmer/)).toBeTruthy()
+    expect(screen.getByText('Estimation non disponible')).toBeTruthy()
+    expect(screen.queryByText(/Course total/)).toBeNull()
     expect(screen.getByText('Gain non disponible')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Accepter' })).toBeTruthy()
     expect(screen.queryByText(/85%/)).toBeNull()
