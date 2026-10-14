@@ -1,6 +1,5 @@
-import { DEV_TEST_PASSENGER_PHONE } from '../store/useAppStore'
 import { simulate } from './simulate'
-import { maskPhone, normalizePhone } from './phone'
+import { DEV_TEST_PASSENGER_PHONE, maskPhone, normalizePhone } from './phone'
 import { runtimeConfig } from './runtimeConfig'
 
 const DEMO_USER_ID = '00000000-0000-4000-8000-000000000001'
@@ -192,6 +191,7 @@ export class SupabaseAuthService {
 
   async requestOtp(phone) {
     const normalizedPhone = normalizePhone(phone)
+    if (!normalizedPhone) throw authError('Numéro de téléphone invalide.', 'invalid_phone')
     const client = await this.getClient()
     const { error } = await client.auth.signInWithOtp({ phone: normalizedPhone })
     if (error) throw error
@@ -205,6 +205,7 @@ export class SupabaseAuthService {
 
   async verifyOtp(phone, token) {
     const normalizedPhone = normalizePhone(phone)
+    if (!normalizedPhone) throw authError('Numéro de téléphone invalide.', 'invalid_phone')
     const client = await this.getClient()
     const { data, error } = await client.auth.verifyOtp({
       phone: normalizedPhone,

@@ -1,9 +1,10 @@
 import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
-import { getRidePricing } from './rideFare'
+import { getServerRideMoney } from './rideFare'
 
 const ACTIVE_RIDE_STATUSES = new Set(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'completed', 'cancelled', 'no_driver'])
 const RESTORABLE_RIDE_STATUSES = Object.freeze(['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'no_driver'])
+const DRIVER_ACTIVE_RIDE_STATUSES = Object.freeze(['assigned', 'arriving', 'arrived', 'in_progress'])
 const LOCATION_VISIBLE_STATUSES = new Set(['assigned', 'arriving', 'arrived', 'in_progress'])
 export const DRIVER_LOCATION_MAX_AGE_MS = 60_000
 const RIDE_COLUMNS = 'id, passenger_id, driver_id, pickup_label, pickup_lat, pickup_lng, destination_label, destination_lat, destination_lng, ride_type, scheduled_at, status, estimated_price, assigned_at, dispatch_deadline_at, created_at, updated_at'
@@ -25,7 +26,7 @@ function normalizeRide(row) {
   if (!value?.id || !ACTIVE_RIDE_STATUSES.has(value.status)) {
     throw realtimeError('La course reçue en temps réel est invalide.', 'invalid_realtime_response')
   }
-  const pricing = getRidePricing(value.estimated_price, value.ride_type)
+  const money = getServerRideMoney(value.estimated_price)
   return {
     id: value.id,
     passengerId: value.passenger_id,
@@ -37,7 +38,7 @@ function normalizeRide(row) {
     rideType: value.ride_type,
     scheduledAt: value.scheduled_at,
     status: value.status,
-    ...pricing,
+    ...money,
     assignedAt: value.assigned_at || null,
     dispatchDeadlineAt: value.dispatch_deadline_at || null,
     createdAt: value.created_at,
@@ -119,12 +120,53 @@ export class SupabaseRideRealtimeService {
     return data ? normalizeRide(data) : null
   }
 
+  // Lecture ciblée d'une course TERMINÉE du passager authentifié. Distincte de
+  // getActiveRide (statuts en cours). La RLS (rides_select_own) filtre déjà ; le
+  // contrôle passenger_id est une seconde barrière explicite côté client.
+  async getCompletedRide(rideId) {
+    assertRideId(rideId)
+    const client = await this.getClient()
+    const { data: sessionData, error: sessionError } = await client.auth.getSession()
+    const userId = sessionData?.session?.user?.id
+    if (sessionError || !userId) {
+      throw realtimeError('Une session est nécessaire pour lire cette course.', 'unauthenticated')
+    }
+
+    const { data, error } = await client
+      .from('rides')
+      .select(RIDE_COLUMNS)
+      .eq('id', rideId)
+      .eq('status', 'completed')
+      .maybeSingle()
+    if (error) throw error
+    if (!data) return null
+    if (data.passenger_id !== userId) {
+      throw realtimeError('Cette course n’appartient pas au compte connecté.', 'forbidden')
+    }
+    return normalizeRide(data)
+  }
+
   async getActiveRide() {
     const { data, error } = await (await this.getClient())
       .from('rides')
       .select(RIDE_COLUMNS)
       .in('status', RESTORABLE_RIDE_STATUSES)
       .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) throw error
+    return data ? normalizeRide(data) : null
+  }
+
+  // Restaure la course du chauffeur après rechargement. La RLS
+  // rides_select_assigned_driver limite le résultat à ses propres courses.
+  async getActiveDriverRide() {
+    const { data, error } = await (await this.getClient())
+      .from('rides')
+      .select(RIDE_COLUMNS)
+      .not('driver_id', 'is', null)
+      .in('status', DRIVER_ACTIVE_RIDE_STATUSES)
+      .order('assigned_at', { ascending: false })
       .limit(1)
       .maybeSingle()
     if (error) throw error
@@ -280,6 +322,14 @@ export class DemoRideRealtimeService {
   }
 
   async getActiveRide() {
+    return null
+  }
+
+  async getCompletedRide() {
+    return null
+  }
+
+  async getActiveDriverRide() {
     return null
   }
 

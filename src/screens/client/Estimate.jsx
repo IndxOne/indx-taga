@@ -9,8 +9,10 @@ import { ROUTES } from '../../navigation/routes'
 import ClientRideMap from '../../components/ClientRideMap'
 import { getRideService } from '../../services/rideService'
 import { getRidePricing } from '../../services/rideFare'
-import { getCurrentPosition } from '../../services/geolocationService'
+import { isTrustedRidePoint } from '../../services/ridePoints'
 import { isDemoMode } from '../../services/runtimeConfig'
+
+export const REAL_ORDER_BLOCKED_REASON = 'La commande de course réelle est désactivée : aucune sélection d’adresse fiable (départ et destination géolocalisés) n’est disponible dans cette version.'
 
 export default function Estimate() {
   const navigate = useNavigate()
@@ -24,23 +26,24 @@ export default function Estimate() {
   const defaultPayment = paymentMethods.find((method) => method.isDefault) ?? paymentMethods[0]
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  // Réel : commande possible uniquement avec deux points fiables (libellé, 2 coordonnées, provenance).
+  const pointsReady = isDemoMode || (isTrustedRidePoint(ride.pickup) && isTrustedRidePoint(ride.destination))
 
   const handleOrder = async () => {
-    if (!selectedOption || isSubmitting) return
+    if (!selectedOption || isSubmitting || !pointsReady) return
     setIsSubmitting(true)
     setError('')
     try {
-      let pickup = { label: ride.pickupLabel }
-      if (!isDemoMode) {
-        const position = await getCurrentPosition()
-        pickup = { ...pickup, lat: position.lat, lng: position.lng }
+      const createdRide = await getRideService().createRide(isDemoMode
+        ? { pickup: { label: ride.pickupLabel }, destination: { label: ride.dropoffLabel }, ride_type: selectedOption.id }
+        : { pickup: ride.pickup, destination: ride.destination, ride_type: selectedOption.id })
+      // Réel : montants tels que renvoyés par le serveur (null si non fournis), sans calcul client.
+      const pricing = isDemoMode ? getRidePricing(createdRide.estimatedPrice, selectedOption.id) : {
+        estimatedPrice: createdRide.estimatedPrice,
+        finalPrice: createdRide.finalPrice,
+        driverEarning: createdRide.driverEarning,
+        paymentStatus: createdRide.paymentStatus,
       }
-      const createdRide = await getRideService().createRide({
-        pickup,
-        destination: { label: ride.dropoffLabel },
-        ride_type: selectedOption.id,
-      })
-      const pricing = getRidePricing(createdRide.estimatedPrice, selectedOption.id)
       setRide({
         ...ride,
         id: createdRide.id,
@@ -72,8 +75,14 @@ export default function Estimate() {
       <div className="flex-1 bg-white -mt-6 rounded-t-3xl px-5 py-6 flex flex-col gap-4 overflow-y-auto">
         <div>
           <p className="text-xs text-gray-400 uppercase">Choisis ta course</p>
-          <p className="font-bold">{ride.distanceKm} km · ~{ride.durationMin} min</p>
-          <p className="text-xs text-gray-400">{ride.pickupLabel} → {ride.dropoffLabel}</p>
+          {isDemoMode && <p className="font-bold">{ride.distanceKm} km · ~{ride.durationMin} min</p>}
+          {isDemoMode && <p className="text-xs text-gray-400">{ride.pickupLabel} → {ride.dropoffLabel}</p>}
+          {!isDemoMode && pointsReady && <p className="text-xs text-gray-400">{ride.pickup.label} → {ride.destination.label}</p>}
+          {!isDemoMode && !pointsReady && (
+            <p role="status" className="mt-1 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+              {REAL_ORDER_BLOCKED_REASON}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">
@@ -88,7 +97,7 @@ export default function Estimate() {
           ))}
         </div>
 
-        {defaultPayment && (
+        {isDemoMode && defaultPayment && (
           <button
             type="button"
             onClick={() => navigate(ROUTES.paymentMethods)}
@@ -104,7 +113,7 @@ export default function Estimate() {
         )}
 
         <div className="mt-auto pt-2">
-          <PrimaryButton onClick={handleOrder} disabled={!selectedOption || isSubmitting}>
+          <PrimaryButton onClick={handleOrder} disabled={!selectedOption || isSubmitting || !pointsReady}>
             {isSubmitting ? 'Création en cours…' : isDemoMode ? `Commander · ${new Intl.NumberFormat('fr-FR').format(selectedOption?.price ?? 0)} F CFA` : 'Demander cette course'}
           </PrimaryButton>
         </div>

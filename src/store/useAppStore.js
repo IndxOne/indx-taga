@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { RIDE_FARES } from '../services/rideFare'
-
-export const DEV_TEST_PASSENGER_PHONE = '+330775679067'
+import { isDemoMode } from '../services/runtimeConfig'
 
 export const MOCK_DRIVER = {
   name: 'Mamadou Ndour',
@@ -52,6 +51,36 @@ export const MOCK_PAYMENT_METHODS = [
   { id: 'pm2', provider: 'wave', label: 'Wave', maskedNumber: '01 •••• 9921', isDefault: false },
 ]
 
+// Mode réel : aucune donnée fictive. Le store n'est qu'un cache d'affichage des
+// réponses serveur. Départ et destination démarrent vides : ils ne peuvent être
+// renseignés que par une source fiable (voir ridePoints.js).
+export const REAL_RIDE = {
+  id: null,
+  pickup: null,
+  destination: null,
+  pickupLabel: '',
+  dropoffLabel: '',
+  distanceKm: null,
+  durationMin: null,
+  estimatedPrice: null,
+  finalPrice: null,
+  driverEarning: null,
+  paymentStatus: null,
+}
+
+export const REAL_PROFILE = {
+  fullName: '',
+  phone: '',
+  email: '',
+  vehicleModel: '',
+  vehiclePlate: '',
+  ratingAvg: 0,
+  hasDriverProfile: false,
+  driverVerificationStatus: 'pending',
+}
+
+const initialRide = isDemoMode ? MOCK_RIDE : REAL_RIDE
+
 export const useAppStore = create((set) => ({
   role: null, // 'passenger' | 'driver'
   setRole: (role) => set({ role }),
@@ -77,7 +106,8 @@ export const useAppStore = create((set) => ({
   }),
   clearOtpChallenge: () => set({ otpChallengeId: '', otpMaskedPhone: '', otpExpiresAt: 0 }),
 
-  ride: MOCK_RIDE,
+  ride: initialRide,
+  resetRide: () => set({ ride: initialRide, rideStatus: 'idle' }),
   setRide: (ride) => set({ ride }),
   updateRide: (patch) => set((state) => ({
     ride: {
@@ -85,7 +115,7 @@ export const useAppStore = create((set) => ({
       ...(typeof patch === 'function' ? patch(state.ride) : patch),
     },
   })),
-  driver: MOCK_DRIVER,
+  driver: isDemoMode ? MOCK_DRIVER : null,
 
   selectedRideOptionId: 'go',
   setSelectedRideOptionId: (id) => set({ selectedRideOptionId: id }),
@@ -96,22 +126,23 @@ export const useAppStore = create((set) => ({
   driverAvailable: false,
   setDriverAvailable: (driverAvailable) => set({ driverAvailable }),
 
-  driverEarningsToday: 22400,
-  driverRidesToday: 9,
-  driverHoursOnline: '5h24',
+  // Revenus, courses du jour et solde : démo uniquement (null = non disponible).
+  driverEarningsToday: isDemoMode ? 22400 : null,
+  driverRidesToday: isDemoMode ? 9 : null,
+  driverHoursOnline: isDemoMode ? '5h24' : null,
 
-  driverWalletBalance: 25120,
+  driverWalletBalance: isDemoMode ? 25120 : null,
   creditRideEarning: (amount) =>
-    set((state) => ({ driverWalletBalance: state.driverWalletBalance + amount })),
+    set((state) => ({ driverWalletBalance: (state.driverWalletBalance ?? 0) + amount })),
 
   rating: 0,
   setRating: (rating) => set({ rating }),
 
-  profile: MOCK_PROFILE,
+  profile: isDemoMode ? MOCK_PROFILE : REAL_PROFILE,
   updateProfile: (profile) => set((state) => ({ profile: { ...state.profile, ...profile } })),
-  rideHistory: MOCK_RIDE_HISTORY,
+  rideHistory: isDemoMode ? MOCK_RIDE_HISTORY : [],
 
-  paymentMethods: MOCK_PAYMENT_METHODS,
+  paymentMethods: isDemoMode ? MOCK_PAYMENT_METHODS : [],
   addPaymentMethod: (method) =>
     set((state) => ({ paymentMethods: [...state.paymentMethods, method] })),
   removePaymentMethod: (id) =>
@@ -129,6 +160,7 @@ export const useAppStore = create((set) => ({
     otpChallengeId: '',
     otpMaskedPhone: '',
     otpExpiresAt: 0,
+    ride: initialRide,
     rideStatus: 'idle',
     driverAvailable: false,
   }),

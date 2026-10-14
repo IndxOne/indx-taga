@@ -7,9 +7,11 @@ import PrimaryButton from '../../components/PrimaryButton'
 import ClientRideMap from '../../components/ClientRideMap'
 import { getDispatchService } from '../../services/dispatchService'
 import { getRideService } from '../../services/rideService'
-import { getRidePricing } from '../../services/rideFare'
+import { mapServerRideToStore } from '../../services/rideMapping'
 import { getDriverLocationRemainingMs, getRideRealtimeService } from '../../services/rideRealtimeService'
 import { isDemoMode } from '../../services/runtimeConfig'
+import { forgetRide, isRideClosed, recallRide, rememberRide } from '../../services/rideSession'
+import { rideEndPath } from '../../navigation/routes'
 
 const STATUS_LABEL = {
   requested: 'Demande enregistrée',
@@ -42,27 +44,6 @@ const REAL_STATUS_COPY = {
 
 const SEARCH_STATUSES = new Set(['requested', 'searching'])
 const DRIVER_ASSIGNED_STATUSES = new Set(['assigned', 'arriving', 'driver_en_route', 'arrived', 'in_progress', 'completed'])
-
-function mapRealtimeRideToStore(backendRide) {
-  const pricing = getRidePricing(backendRide.estimatedPrice, backendRide.rideType)
-  return {
-    id: backendRide.id,
-    passengerId: backendRide.passengerId,
-    driverId: backendRide.driverId,
-    pickup: backendRide.pickup,
-    destination: backendRide.destination,
-    pickupLabel: backendRide.pickupLabel,
-    dropoffLabel: backendRide.dropoffLabel,
-    rideType: backendRide.rideType,
-    scheduledAt: backendRide.scheduledAt,
-    status: backendRide.status,
-    ...pricing,
-    assignedAt: backendRide.assignedAt,
-    dispatchDeadlineAt: backendRide.dispatchDeadlineAt,
-    createdAt: backendRide.createdAt,
-    updatedAt: backendRide.updatedAt,
-  }
-}
 
 export default function ActiveRide() {
   const navigate = useNavigate()
@@ -151,13 +132,23 @@ export default function ActiveRide() {
 
     let cancelled = false
     let unsubscribe
+    let removeOnlineListener
     const realtime = getRideRealtimeService()
     const applyRide = (serverRide) => {
       if (cancelled || !serverRide) return
-      updateRide(mapRealtimeRideToStore(serverRide))
+      updateRide(mapServerRideToStore(serverRide))
       setRideStatus(serverRide.status)
       if (!['assigned', 'arriving', 'arrived', 'in_progress'].includes(serverRide.status)) {
         setDriverLocation(null)
+      }
+      // Fin de course décidée par le serveur (chauffeur) : bascule vers le récap
+      // de CETTE course, identifiée dans l'URL pour survivre à un rechargement.
+      if (serverRide.status === 'completed') {
+        navigate(rideEndPath(serverRide.id), { replace: true })
+      } else if (serverRide.status === 'cancelled') {
+        forgetRide()
+      } else {
+        rememberRide(serverRide.id)
       }
     }
 
@@ -167,6 +158,19 @@ export default function ActiveRide() {
         if (cancelled) return
 
         if (!activeRide) {
+          // Aucune course en cours : la dernière course suivie est-elle terminée
+          // sans que l'événement Realtime n'ait été reçu ? (rechargement, coupure)
+          const remembered = recallRide()
+          if (remembered && !isRideClosed(remembered)) {
+            const completed = await realtime.getCompletedRide(remembered)
+            if (cancelled) return
+            if (completed) {
+              setIsRestoringRide(false)
+              navigate(rideEndPath(completed.id), { replace: true })
+              return
+            }
+            forgetRide()
+          }
           setIsRestoringRide(false)
           navigate('/client/home', { replace: true })
           return
@@ -177,13 +181,28 @@ export default function ActiveRide() {
         if (cancelled) return
         setDriverLocation(location)
 
+        // Filet de sécurité : un événement Realtime manqué (coupure réseau,
+        // canal en erreur) est rattrapé par une relecture serveur de la course.
+        const resync = async () => {
+          try {
+            const fresh = await realtime.getRide(activeRide.id)
+            if (!cancelled && fresh) applyRide(fresh)
+          } catch {
+            // La relecture suivante (reconnexion) retentera ; l'erreur Realtime reste affichée.
+          }
+        }
+        window.addEventListener('online', resync)
+        removeOnlineListener = () => window.removeEventListener('online', resync)
+
         unsubscribe = realtime.subscribeToRide(activeRide.id, {
           onRideChange: applyRide,
           onDriverLocationChange: (nextLocation) => {
             if (!cancelled) setDriverLocation(nextLocation || null)
           },
           onError: (error) => {
-            if (!cancelled) setRealtimeError(error.message || 'La synchronisation temps réel est indisponible.')
+            if (cancelled) return
+            setRealtimeError(error.message || 'La synchronisation temps réel est indisponible.')
+            void resync()
           },
         })
       } catch (error) {
@@ -197,6 +216,7 @@ export default function ActiveRide() {
     return () => {
       cancelled = true
       unsubscribe?.()
+      removeOnlineListener?.()
     }
   }, [navigate, setRideStatus, updateRide])
 
@@ -215,6 +235,7 @@ export default function ActiveRide() {
       const cancelledRide = await getRideService().cancelRideSearch(ride.id)
       updateRide({ id: cancelledRide.id, status: cancelledRide.status, dispatchDeadlineAt: null })
       setRideStatus(cancelledRide.status)
+      forgetRide()
       navigate('/client/home', { replace: true })
     } catch (error) {
       setActionError(error.message || 'La recherche n’a pas pu être annulée.')

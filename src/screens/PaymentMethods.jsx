@@ -5,6 +5,7 @@ import PrimaryButton from '../components/PrimaryButton'
 import AmountTile from '../components/AmountTile'
 import BottomNavBar from '../components/BottomNavBar'
 import Icon from '../components/Icon'
+import { isDemoMode } from '../services/runtimeConfig'
 
 export default function PaymentMethods() {
   const role = useAppStore((state) => state.role)
@@ -30,6 +31,26 @@ export default function PaymentMethods() {
       isDefault: false,
     })
     setShowAdd(false)
+  }
+
+  if (!isDemoMode) {
+    // Mode réel : aucun moyen de paiement, solde ni retrait fictif.
+    return (
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1 px-6 pt-8 pb-6 overflow-y-auto">
+          <div className="flex items-center gap-3">
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${isDriver ? 'bg-taga-green/10' : 'bg-taga-blue/10'}`}>
+              <Icon name={isDriver ? 'wallet' : 'card'} size={21} />
+            </div>
+            <h1 className="text-xl font-bold leading-tight">{isDriver ? 'Gains et retraits' : 'Moyens de paiement'}</h1>
+          </div>
+          <p role="status" className="mt-6 rounded-xl bg-gray-50 px-4 py-4 text-sm leading-6 text-gray-500">
+            Le paiement mobile money n’est pas encore activé. Aucun moyen de paiement, solde ou retrait n’est disponible dans cette version.
+          </p>
+        </div>
+        <BottomNavBar />
+      </div>
+    )
   }
 
   return (

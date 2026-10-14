@@ -9,7 +9,7 @@ describe('DemoAuthService', () => {
     const result = await service.requestOtp('07 07 12 34 56')
 
     expect(result.challengeId).toBe('dev-challenge')
-    expect(result.phone).toBe('+225707123456')
+    expect(result.phone).toBe('+2250707123456')
     expect(result.expiresIn).toBe(300)
   })
 
@@ -96,5 +96,26 @@ describe('SupabaseAuthService', () => {
     expect(client.auth.getSession).toHaveBeenCalled()
     expect(client.auth.getUser).toHaveBeenCalled()
     expect(client.auth.signOut).toHaveBeenCalled()
+  })
+
+  it('refuse un numéro invalide avant tout appel Supabase (aucun SMS)', async () => {
+    const client = {
+      auth: { signInWithOtp: vi.fn(), verifyOtp: vi.fn() },
+    }
+    const service = new SupabaseAuthService({ supabaseUrl: 'https://example.supabase.co', supabaseAnonKey: 'public-key' }, client)
+
+    await expect(service.requestOtp('07 07 12')).rejects.toMatchObject({ code: 'invalid_phone' })
+    await expect(service.requestOtp('')).rejects.toMatchObject({ code: 'invalid_phone' })
+    await expect(service.verifyOtp('abc', '123456')).rejects.toMatchObject({ code: 'invalid_phone' })
+    expect(client.auth.signInWithOtp).not.toHaveBeenCalled()
+    expect(client.auth.verifyOtp).not.toHaveBeenCalled()
+  })
+
+  it('normalise un numéro national en +225 + 10 chiffres pour le SMS', async () => {
+    const client = { auth: { signInWithOtp: vi.fn().mockResolvedValue({ error: null }) } }
+    const service = new SupabaseAuthService({ supabaseUrl: 'https://example.supabase.co', supabaseAnonKey: 'public-key' }, client)
+
+    await service.requestOtp('07 07 12 34 56')
+    expect(client.auth.signInWithOtp).toHaveBeenCalledWith({ phone: '+2250707123456' })
   })
 })

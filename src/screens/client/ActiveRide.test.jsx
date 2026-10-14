@@ -1,13 +1,16 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { MOCK_RIDE, useAppStore } from '../../store/useAppStore'
+import { markRideClosed, recallRide, rememberRide, resetRideSessionForTests } from '../../services/rideSession'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   realtime: {
     getActiveRide: vi.fn(),
+    getCompletedRide: vi.fn(),
+    getRide: vi.fn(),
     getDriverLocation: vi.fn(),
     subscribeToRide: vi.fn(),
   },
@@ -60,6 +63,7 @@ const searchingRide = {
 describe('ActiveRide en mode réel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRideSessionForTests()
     useAppStore.setState({ ride: MOCK_RIDE, rideStatus: 'idle' })
     mocks.realtime.getActiveRide.mockResolvedValue(searchingRide)
     mocks.realtime.getDriverLocation.mockResolvedValue(null)
@@ -85,6 +89,98 @@ describe('ActiveRide en mode réel', () => {
       onDriverLocationChange: expect.any(Function),
     }))
     expect(useAppStore.getState().ride).toMatchObject({ id: 'ride-searching', status: 'searching' })
+  })
+
+  it('suit la progression décidée par le chauffeur sans ETA ni chauffeur fictif, puis ouvre la fin de course', async () => {
+    mocks.realtime.getActiveRide.mockResolvedValue({ ...searchingRide, status: 'assigned', driverId: 'driver-1', dispatchDeadlineAt: null })
+
+    render(<MemoryRouter><ActiveRide /></MemoryRouter>)
+    await waitFor(() => expect(mocks.realtime.subscribeToRide).toHaveBeenCalledTimes(1))
+    const { onRideChange } = mocks.realtime.subscribeToRide.mock.calls[0][1]
+
+    act(() => onRideChange({ ...searchingRide, status: 'arriving', driverId: 'driver-1', dispatchDeadlineAt: null }))
+    await waitFor(() => expect(screen.getByText('Votre chauffeur est en approche.')).toBeTruthy())
+    for (const fake of [/Mamadou/, /3 min/, /Rue M38/]) {
+      expect(screen.queryByText(fake)).toBeNull()
+    }
+    expect(mocks.navigate).not.toHaveBeenCalledWith(expect.stringContaining('/client/ride-end'), expect.anything())
+
+    act(() => onRideChange({ ...searchingRide, status: 'completed', driverId: 'driver-1', dispatchDeadlineAt: null }))
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/client/ride-end/ride-searching', { replace: true }))
+    expect(useAppStore.getState().ride).toMatchObject({ id: 'ride-searching', status: 'completed' })
+  })
+
+  it('course terminée dont l’événement Realtime a été manqué : restaurée après un rechargement', async () => {
+    rememberRide('ride-searching')
+    mocks.realtime.getActiveRide.mockResolvedValue(null)
+    mocks.realtime.getCompletedRide.mockResolvedValue({ ...searchingRide, status: 'completed', driverId: 'driver-1' })
+
+    render(<MemoryRouter><ActiveRide /></MemoryRouter>)
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/client/ride-end/ride-searching', { replace: true }))
+    expect(mocks.realtime.getCompletedRide).toHaveBeenCalledWith('ride-searching')
+    expect(mocks.navigate).not.toHaveBeenCalledWith('/client/home', expect.anything())
+  })
+
+  it('course mémorisée mais non terminée côté serveur : oubliée, retour à l’accueil', async () => {
+    rememberRide('ride-searching')
+    mocks.realtime.getActiveRide.mockResolvedValue(null)
+    mocks.realtime.getCompletedRide.mockResolvedValue(null)
+
+    render(<MemoryRouter><ActiveRide /></MemoryRouter>)
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/client/home', { replace: true }))
+    expect(recallRide()).toBeNull()
+  })
+
+  it('récapitulatif déjà clôturé : jamais rouvert, aucune lecture serveur', async () => {
+    rememberRide('ride-searching')
+    markRideClosed('ride-searching')
+    mocks.realtime.getActiveRide.mockResolvedValue(null)
+
+    render(<MemoryRouter><ActiveRide /></MemoryRouter>)
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/client/home', { replace: true }))
+    expect(mocks.realtime.getCompletedRide).not.toHaveBeenCalled()
+    expect(mocks.navigate).not.toHaveBeenCalledWith(expect.stringContaining('/client/ride-end'), expect.anything())
+  })
+
+  it('erreur réseau pendant la restauration : message d’erreur, pas de redirection trompeuse', async () => {
+    rememberRide('ride-searching')
+    mocks.realtime.getActiveRide.mockResolvedValue(null)
+    mocks.realtime.getCompletedRide.mockRejectedValue(new Error('Réseau indisponible'))
+
+    render(<MemoryRouter><ActiveRide /></MemoryRouter>)
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Réseau indisponible')
+    expect(mocks.navigate).not.toHaveBeenCalled()
+    expect(recallRide()).toBe('ride-searching')
+  })
+
+  it('reconnexion réseau : un événement de fin manqué est rattrapé par une relecture serveur', async () => {
+    mocks.realtime.getActiveRide.mockResolvedValue({ ...searchingRide, status: 'in_progress', driverId: 'driver-1', dispatchDeadlineAt: null })
+    mocks.realtime.getRide.mockResolvedValue({ ...searchingRide, status: 'completed', driverId: 'driver-1', dispatchDeadlineAt: null })
+
+    render(<MemoryRouter><ActiveRide /></MemoryRouter>)
+    await waitFor(() => expect(mocks.realtime.subscribeToRide).toHaveBeenCalledTimes(1))
+
+    act(() => { window.dispatchEvent(new Event('online')) })
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/client/ride-end/ride-searching', { replace: true }))
+    expect(mocks.realtime.getRide).toHaveBeenCalledWith('ride-searching')
+  })
+
+  it('canal Realtime en erreur : relecture serveur de la course', async () => {
+    mocks.realtime.getActiveRide.mockResolvedValue({ ...searchingRide, status: 'in_progress', driverId: 'driver-1', dispatchDeadlineAt: null })
+    mocks.realtime.getRide.mockResolvedValue({ ...searchingRide, status: 'completed', driverId: 'driver-1', dispatchDeadlineAt: null })
+
+    render(<MemoryRouter><ActiveRide /></MemoryRouter>)
+    await waitFor(() => expect(mocks.realtime.subscribeToRide).toHaveBeenCalledTimes(1))
+    const { onError } = mocks.realtime.subscribeToRide.mock.calls[0][1]
+
+    act(() => onError(new Error('Canal fermé')))
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/client/ride-end/ride-searching', { replace: true }))
   })
 
   it('redirige vers l’accueil quand Supabase ne renvoie aucune course active', async () => {

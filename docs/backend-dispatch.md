@@ -4,7 +4,9 @@
 
 Le Lot 3 prépare le premier dispatch serveur sans introduire de cartographie,
 de paiement ni de suivi temps réel. La production reste en mode démo ; le
-contrat est testable sur la Preview avec la migration `003_dispatch.sql`.
+contrat a été décrit pour la migration `003_dispatch.sql` (historique). Toute application
+ou tout rejeu d'une migration sur un projet Supabase suit [`staging-recette.md`](./staging-recette.md) :
+inventaire préalable, autorisation explicite.
 
 ## Disponibilité chauffeur
 

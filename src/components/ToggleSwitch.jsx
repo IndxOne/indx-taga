@@ -1,11 +1,12 @@
-export default function ToggleSwitch({ id, checked, onChange, label }) {
+export default function ToggleSwitch({ id, checked, onChange, label, disabled = false }) {
   return (
-    <label htmlFor={id} className="flex items-center gap-3 text-sm font-medium cursor-pointer select-none">
+    <label htmlFor={id} className={`flex items-center gap-3 text-sm font-medium select-none ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
       <span className="relative inline-flex shrink-0">
         <input
           id={id}
           type="checkbox"
           checked={checked}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
           className="peer sr-only"
         />

@@ -11,6 +11,7 @@ export const ROUTES = {
   clientEstimate: '/client/estimate',
   clientActiveRide: '/client/active-ride',
   clientRideEnd: '/client/ride-end',
+  clientRideEndById: '/client/ride-end/:rideId',
   driverOnline: '/driver/online',
   driverIncomingRequest: '/driver/incoming-request',
   driverNavigation: '/driver/navigation',
@@ -31,3 +32,5 @@ export const DRIVER_NAV_ITEMS = [
   { icon: 'receipt', label: 'Courses', path: ROUTES.rideHistory },
   { icon: 'user', label: 'Profil', path: ROUTES.profile },
 ]
+
+export const rideEndPath = (rideId) => `/client/ride-end/${encodeURIComponent(rideId)}`

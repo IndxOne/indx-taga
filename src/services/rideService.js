@@ -1,6 +1,7 @@
 import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
-import { getRidePricing } from './rideFare'
+import { getRidePricing, getServerRideMoney } from './rideFare'
+import { describeRidePointProblem, toRpcPoint } from './ridePoints'
 
 export const RIDE_TYPES = Object.freeze(['go', 'partage', 'family', 'confort'])
 
@@ -32,15 +33,23 @@ function normalizeLocation(value, fieldName) {
   return location
 }
 
-function normalizeCreateInput(input = {}) {
+// Mode réel : départ et destination doivent être des points fiables complets.
+function normalizeTrustedLocation(value, fieldName) {
+  const problem = describeRidePointProblem(value)
+  if (problem) throw validationError(`Le point ${fieldName} est inutilisable : ${problem}.`)
+  return toRpcPoint(value)
+}
+
+function normalizeCreateInput(input = {}, { trusted = false } = {}) {
   for (const serverField of ['passenger_id', 'status', 'estimated_price']) {
     if (Object.prototype.hasOwnProperty.call(input, serverField)) {
       throw validationError(`${serverField} est géré par le serveur.`)
     }
   }
 
-  const pickup = normalizeLocation(input.pickup, 'départ')
-  const destination = normalizeLocation(input.destination, 'destination')
+  const normalize = trusted ? normalizeTrustedLocation : normalizeLocation
+  const pickup = normalize(input.pickup, 'départ')
+  const destination = normalize(input.destination, 'destination')
   const rideType = input.ride_type ?? input.rideType
   if (!RIDE_TYPES.includes(rideType)) {
     throw validationError('Le type de course est invalide.')
@@ -66,10 +75,23 @@ function normalizeCreateInput(input = {}) {
   }
 }
 
+// Migration 012 : EXECUTE sur create_ride est révoqué aux clients tant que la
+// sélection d'adresse fiable n'existe pas. PostgREST répond alors 42501 /
+// « permission denied for function create_ride ».
+function isRideCreationDisabled(error) {
+  return error?.code === '42501' && /permission denied for function create_ride/i.test(String(error.message ?? ''))
+}
+
+function rideCreationDisabledError() {
+  const error = new Error('La création de course réelle est désactivée : la sélection d’adresse fiable n’est pas encore disponible.')
+  error.code = 'ride_creation_disabled'
+  return error
+}
+
 function fromDatabaseRow(row) {
   const value = Array.isArray(row) ? row[0] : row
   if (!value?.id) throw new Error('La course créée n’a pas été retournée par le backend.')
-  const pricing = getRidePricing(value.estimated_price, value.ride_type)
+  const money = getServerRideMoney(value.estimated_price)
 
   return {
     id: value.id,
@@ -79,7 +101,7 @@ function fromDatabaseRow(row) {
     rideType: value.ride_type,
     scheduledAt: value.scheduled_at,
     status: value.status,
-    ...pricing,
+    ...money,
     createdAt: value.created_at,
     updatedAt: value.updated_at,
   }
@@ -99,7 +121,7 @@ export class SupabaseRideService {
   }
 
   async createRide(input) {
-    const payload = normalizeCreateInput(input)
+    const payload = normalizeCreateInput(input, { trusted: true })
     const client = await this.getClient()
     const { data, error } = await client.rpc('create_ride', {
       p_pickup: payload.pickup,
@@ -107,7 +129,7 @@ export class SupabaseRideService {
       p_ride_type: payload.ride_type,
       p_scheduled_at: payload.scheduled_at,
     })
-    if (error) throw error
+    if (error) throw isRideCreationDisabled(error) ? rideCreationDisabledError() : error
     return fromDatabaseRow(data)
   }
 

@@ -7,33 +7,14 @@ import BackButton from '../../components/BackButton'
 import DriverRideMap from '../../components/DriverRideMap'
 import { getDispatchService } from '../../services/dispatchService'
 import { getRideRealtimeService } from '../../services/rideRealtimeService'
-import { getRidePricing } from '../../services/rideFare'
+import { mapServerRideToStore } from '../../services/rideMapping'
 import { isDemoMode } from '../../services/runtimeConfig'
 import { ROUTES } from '../../navigation/routes'
 
+const EARNING_UNAVAILABLE = 'Gain non disponible'
+
 function formatAmount(amount, fallback = 'Montant à confirmer') {
   return !Number.isFinite(amount) ? fallback : `${new Intl.NumberFormat('fr-FR').format(amount)} F`
-}
-
-function mapRideToStore(backendRide) {
-  const pricing = getRidePricing(backendRide.estimatedPrice, backendRide.rideType)
-  return {
-    id: backendRide.id,
-    passengerId: backendRide.passengerId,
-    pickup: backendRide.pickup,
-    destination: backendRide.destination,
-    pickupLabel: backendRide.pickupLabel,
-    dropoffLabel: backendRide.dropoffLabel,
-    rideType: backendRide.rideType,
-    scheduledAt: backendRide.scheduledAt,
-    driverId: backendRide.driverId,
-    status: backendRide.status,
-    ...pricing,
-    assignedAt: backendRide.assignedAt,
-    dispatchDeadlineAt: backendRide.dispatchDeadlineAt,
-    createdAt: backendRide.createdAt,
-    updatedAt: backendRide.updatedAt,
-  }
 }
 
 export default function IncomingRequest() {
@@ -164,7 +145,7 @@ export default function IncomingRequest() {
     try {
       const responseRide = await getDispatchService().respondToOffer(currentOffer.id, decision)
       if (decision === 'accept') {
-        const nextRide = mapRideToStore(responseRide)
+        const nextRide = mapServerRideToStore(responseRide)
         setRide(nextRide)
         updateRide(nextRide)
         setRideStatus(responseRide.status)
@@ -226,13 +207,9 @@ export default function IncomingRequest() {
   }
 
   const ride = isDemoMode ? storeRide : offer.ride
-  const pricing = isDemoMode ? {
-    estimatedPrice: ride.price,
-    price: ride.price,
-    driverEarning: ride.driverEarning,
-  } : getRidePricing(ride.estimatedPrice, ride.rideType)
-  const totalAmount = pricing.price
-  const driverAmount = pricing.driverEarning
+  // Réel : montants serveur uniquement (null tant que le prix n'est pas fixé).
+  const totalAmount = isDemoMode ? ride.price : ride.estimatedPrice
+  const driverAmount = ride.driverEarning
   const pickupLabel = ride.pickupLabel || ride.pickup?.label || 'Prise en charge'
   const destinationLabel = ride.dropoffLabel || ride.destination?.label || 'Destination'
   const isResponding = Boolean(responseState)
@@ -254,9 +231,11 @@ export default function IncomingRequest() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-400">TU GAGNES</p>
-            <p className="font-bold text-3xl">{formatAmount(driverAmount)}</p>
+            <p className="font-bold text-3xl">{formatAmount(driverAmount, EARNING_UNAVAILABLE)}</p>
             <p className="text-[10px] text-gray-400">
-              Course total : {formatAmount(totalAmount)} · Net : 85%
+              {isDemoMode
+                ? `Course total : ${formatAmount(totalAmount)} · Net : 85%`
+                : Number.isFinite(totalAmount) ? `Estimation indicative : ${formatAmount(totalAmount)}` : 'Estimation non disponible'}
             </p>
           </div>
           <div className="flex h-16 w-16 flex-col items-center justify-center rounded-full border-4 border-taga-mango font-bold text-taga-navy">
@@ -294,7 +273,7 @@ export default function IncomingRequest() {
           </button>
           <div className="flex-1">
             <PrimaryButton variant="green" onClick={handleAccept} disabled={isResponding}>
-              {responseState === 'accept' ? 'Acceptation…' : responseState === 'expire' ? 'Mise à jour…' : `Accepter · ${formatAmount(driverAmount)}`}
+              {responseState === 'accept' ? 'Acceptation…' : responseState === 'expire' ? 'Mise à jour…' : Number.isFinite(driverAmount) ? `Accepter · ${formatAmount(driverAmount)}` : 'Accepter'}
             </PrimaryButton>
           </div>
         </div>

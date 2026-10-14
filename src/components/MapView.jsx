@@ -1,3 +1,5 @@
+import { isDemoMode } from '../services/runtimeConfig'
+
 export default function MapView({ children, className = '', 'aria-label': ariaLabel = 'Carte de la zone de trajet', ...attributes }) {
   return (
     <div
@@ -39,16 +41,18 @@ export default function MapView({ children, className = '', 'aria-label': ariaLa
           <rect x="370" y="196" width="38" height="28" rx="3" />
         </g>
 
-        <g fill="#7f9498" fontFamily="sans-serif" fontSize="9" fontWeight="600">
-          <text x="18" y="145">Cocody</text>
-          <text x="218" y="62">Riviera 3</text>
-          <text x="330" y="187">Plateau</text>
-          <text x="24" y="298">Boulevard Latrille</text>
-        </g>
+        {isDemoMode && (
+          <g fill="#7f9498" fontFamily="sans-serif" fontSize="9" fontWeight="600">
+            <text x="18" y="145">Cocody</text>
+            <text x="218" y="62">Riviera 3</text>
+            <text x="330" y="187">Plateau</text>
+            <text x="24" y="298">Boulevard Latrille</text>
+          </g>
+        )}
       </svg>
 
       <div className="pointer-events-none absolute right-4 top-4 z-[1] rounded-lg bg-white/90 px-2 py-1 text-[10px] font-semibold text-gray-500 shadow-sm">
-        Carte SVG · aperçu
+        {isDemoMode ? 'Carte SVG · aperçu' : 'Fond décoratif · aucun trajet réel'}
       </div>
       {children}
     </div>

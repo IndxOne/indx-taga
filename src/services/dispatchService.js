@@ -1,8 +1,9 @@
 import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
-import { getRidePricing } from './rideFare'
+import { getServerRideMoney } from './rideFare'
 
 const AVAILABILITY_STATUSES = Object.freeze(['offline', 'available', 'on_ride'])
+export const DRIVER_RIDE_TRANSITIONS = Object.freeze(['arriving', 'arrived', 'in_progress', 'completed'])
 
 function backendError(message, code = 'dispatch_error') {
   const error = new Error(message)
@@ -29,7 +30,7 @@ function normalizeAvailability(row) {
 function normalizeRide(row) {
   const value = Array.isArray(row) ? row[0] : row
   if (!value?.id) throw backendError('La course retournée par le backend est invalide.', 'invalid_dispatch_response')
-  const pricing = getRidePricing(value.estimated_price, value.ride_type)
+  const money = getServerRideMoney(value.estimated_price)
 
   return {
     id: value.id,
@@ -42,7 +43,7 @@ function normalizeRide(row) {
     scheduledAt: value.scheduled_at,
     driverId: value.driver_id || null,
     status: value.status,
-    ...pricing,
+    ...money,
     assignedAt: value.assigned_at || null,
     dispatchDeadlineAt: value.dispatch_deadline_at || null,
     createdAt: value.created_at,
@@ -74,6 +75,17 @@ export class SupabaseDispatchService {
     return normalizeAvailability(data)
   }
 
+  // Lecture de la disponibilité serveur (RLS : le chauffeur ne lit que son profil).
+  async getDriverAvailability() {
+    const { data, error } = await (await this.getClient())
+      .from('driver_profiles')
+      .select('user_id, availability_status, available_since, updated_at')
+      .maybeSingle()
+    if (error) throw error
+    if (!data) throw backendError('Profil chauffeur introuvable.', 'driver_profile_missing')
+    return normalizeAvailability(data)
+  }
+
   async requestRideDispatch(rideId) {
     if (typeof rideId !== 'string' || !rideId.trim()) {
       throw backendError('Un identifiant de course est requis.', 'invalid_dispatch_input')
@@ -95,6 +107,22 @@ export class SupabaseDispatchService {
     const { data, error } = await (await this.getClient()).rpc('respond_to_ride_offer', {
       p_offer_id: offerId,
       p_decision: decision,
+    })
+    if (error) throw error
+    return normalizeRide(data)
+  }
+
+  // Le serveur valide le chauffeur, l'ordre des étapes et l'idempotence.
+  async advanceRide(rideId, toStatus) {
+    if (typeof rideId !== 'string' || !rideId.trim()) {
+      throw backendError('Un identifiant de course est requis.', 'invalid_dispatch_input')
+    }
+    if (!DRIVER_RIDE_TRANSITIONS.includes(toStatus)) {
+      throw backendError('Le statut demandé est invalide.', 'invalid_dispatch_input')
+    }
+    const { data, error } = await (await this.getClient()).rpc('advance_driver_ride', {
+      p_ride_id: rideId,
+      p_to_status: toStatus,
     })
     if (error) throw error
     return normalizeRide(data)
@@ -128,12 +156,20 @@ export class DemoDispatchService {
     }
   }
 
+  async getDriverAvailability() {
+    return this.setDriverAvailability(this.available)
+  }
+
   async requestRideDispatch(rideId) {
     return { id: rideId, status: 'searching', driverId: null, dispatchDeadlineAt: null }
   }
 
   async respondToOffer(offerId, decision) {
     return { id: `demo-ride-for-${offerId}`, status: decision === 'accept' ? 'assigned' : 'searching' }
+  }
+
+  async advanceRide(rideId, toStatus) {
+    return { id: rideId, status: toStatus }
   }
 
   async expireOffer(offerId) {

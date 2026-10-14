@@ -1,3 +1,5 @@
+import { isDemoMode } from '../services/runtimeConfig'
+
 const PHASE_CONFIG = {
   request: {
     driver: { left: '22%', top: '68%' },
@@ -44,6 +46,9 @@ function MapMarker({ type, position, label }) {
 
 export default function DriverRideMap({ phase = 'request' }) {
   const config = PHASE_CONFIG[phase] ?? PHASE_CONFIG.request
+
+  // Mode réel : route et marqueurs fixes = démonstration, jamais un trajet réel.
+  if (!isDemoMode) return null
 
   return (
     <>
