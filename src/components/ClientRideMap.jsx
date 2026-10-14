@@ -1,4 +1,5 @@
 import Icon from './Icon'
+import { useAppStore } from '../store/useAppStore'
 
 const PHASES = {
   estimate: {
@@ -12,7 +13,7 @@ const PHASES = {
   },
 }
 
-function Marker({ type, position, label }) {
+function Marker({ type, position, label, driverChip }) {
   const styles = {
     pickup: 'bg-white border-2 border-taga-green text-taga-green',
     driver: 'bg-taga-blue text-white ring-4 ring-taga-blue/20',
@@ -24,9 +25,9 @@ function Marker({ type, position, label }) {
       <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs shadow-md ${styles[type]}`}>
         {type === 'driver' ? <Icon name="car" size={15} /> : type === 'pickup' ? <Icon name="pin" size={15} /> : <Icon name="route" size={15} />}
       </div>
-      {type === 'driver' && (
+      {type === 'driver' && driverChip && (
         <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded-full bg-taga-blue px-2 py-1 text-[9px] font-semibold text-white shadow-sm">
-          Mamadou · 3 min
+          {driverChip}
         </span>
       )}
     </div>
@@ -35,6 +36,8 @@ function Marker({ type, position, label }) {
 
 export default function ClientRideMap({ phase = 'estimate', showDriver = false }) {
   const config = PHASES[phase] ?? PHASES.estimate
+  const ride = useAppStore((state) => state.ride)
+  const driver = useAppStore((state) => state.driver)
   const end = phase === 'active' ? 'M120 245 C160 214 198 178 244 140 S305 83 336 58' : 'M120 245 C164 210 208 178 250 142 S305 83 320 58'
 
   return (
@@ -45,10 +48,10 @@ export default function ClientRideMap({ phase = 'estimate', showDriver = false }
       </svg>
       <div className={`absolute right-32 top-4 z-[2] rounded-xl bg-white/95 px-3 py-2 shadow-md ${phase === 'estimate' ? 'left-16' : 'left-4'}`}>
         <p className="text-[9px] font-semibold uppercase tracking-wide text-gray-400">Trajet</p>
-        <p className="text-xs font-semibold text-taga-navy">Cocody, Riviera 3 <span className="text-gray-300">→</span> Plateau, Imm. CAISTAB</p>
+        <p className="text-xs font-semibold text-taga-navy">{ride.pickupLabel} <span className="text-gray-300">→</span> {ride.dropoffLabel}</p>
       </div>
       <Marker type="pickup" position={config.pickup} label="Point de prise en charge" />
-      {config.driver && showDriver && <Marker type="driver" position={config.driver} label="Chauffeur" />}
+      {config.driver && showDriver && <Marker type="driver" position={config.driver} label="Chauffeur" driverChip={driver ? `${driver.name.split(' ')[0]} · 3 min` : null} />}
       <Marker type="dropoff" position={config.dropoff} label="Destination" />
     </>
   )

@@ -27,3 +27,22 @@ export function getRidePricing(value, rideType) {
     driverEarning: Math.round(price * DRIVER_COMMISSION_RATE),
   }
 }
+
+// Mode réel : aucun tarif de repli. Tant que le backend n'a pas fixé le prix,
+// le montant reste inconnu (null) au lieu d'afficher une valeur fictive.
+export function getServerRidePricing(value) {
+  const amount = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : Number.NaN
+
+  if (!Number.isFinite(amount) || amount < 0) {
+    return { estimatedPrice: null, price: null, driverEarning: null }
+  }
+  return {
+    estimatedPrice: amount,
+    price: amount,
+    driverEarning: Math.round(amount * DRIVER_COMMISSION_RATE),
+  }
+}

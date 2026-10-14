@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom'
 import MapProvider from '../../components/MapProvider'
 import BottomNavBar from '../../components/BottomNavBar'
 import Icon from '../../components/Icon'
+import { useAppStore } from '../../store/useAppStore'
+import { isDemoMode } from '../../services/runtimeConfig'
 
 const FAVORITES = [
   { icon: 'home', label: 'Maison', sub: 'Cocody · Riviera 3', accent: 'bg-indigo-50' },
@@ -11,6 +13,8 @@ const FAVORITES = [
 
 export default function Home() {
   const navigate = useNavigate()
+  const fullName = useAppStore((state) => state.profile.fullName)
+  const firstName = isDemoMode ? 'Akissi' : fullName.split(' ')[0]
 
   return (
     <div className="flex-1 flex flex-col">
@@ -19,7 +23,7 @@ export default function Home() {
           <span className="h-2 w-2 rounded-full bg-taga-green shadow-[0_0_0_4px_rgba(0,168,120,0.15)]" />
           <div>
             <p className="text-[9px] font-semibold uppercase tracking-wide text-gray-400">Position actuelle</p>
-            <p className="text-xs font-semibold text-taga-navy">Cocody, Riviera 3</p>
+            <p className="text-xs font-semibold text-taga-navy">{isDemoMode ? 'Cocody, Riviera 3' : 'Détectée à la commande'}</p>
           </div>
         </div>
         <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 430 320" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
@@ -33,7 +37,7 @@ export default function Home() {
       <div className="flex-1 bg-white -mt-6 rounded-t-3xl px-5 py-6 flex flex-col gap-5">
         <div className="mx-auto -mt-2 h-1 w-10 rounded-full bg-gray-200" aria-hidden="true" />
         <div>
-          <h1 className="text-xl font-bold">Bonjour Akissi</h1>
+          <h1 className="text-xl font-bold">{firstName ? `Bonjour ${firstName}` : 'Bonjour'}</h1>
           <p className="text-gray-500 text-sm">Où on va aujourd'hui ?</p>
         </div>
 
@@ -46,7 +50,7 @@ export default function Home() {
           <span className="rounded-lg bg-taga-blue/10 px-2 py-1 text-xs font-semibold text-taga-blue">Tap →</span>
         </button>
 
-        <div className="flex flex-col gap-3">
+        {isDemoMode && <div className="flex flex-col gap-3">
           {FAVORITES.map((favorite) => (
             <button
               key={favorite.label}
@@ -63,7 +67,7 @@ export default function Home() {
               <span className="pr-1 text-lg text-gray-300" aria-hidden="true">›</span>
             </button>
           ))}
-        </div>
+        </div>}
       </div>
 
       <BottomNavBar />

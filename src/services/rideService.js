@@ -1,6 +1,6 @@
 import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
-import { getRidePricing } from './rideFare'
+import { getRidePricing, getServerRidePricing } from './rideFare'
 
 export const RIDE_TYPES = Object.freeze(['go', 'partage', 'family', 'confort'])
 
@@ -69,7 +69,7 @@ function normalizeCreateInput(input = {}) {
 function fromDatabaseRow(row) {
   const value = Array.isArray(row) ? row[0] : row
   if (!value?.id) throw new Error('La course créée n’a pas été retournée par le backend.')
-  const pricing = getRidePricing(value.estimated_price, value.ride_type)
+  const pricing = getServerRidePricing(value.estimated_price)
 
   return {
     id: value.id,

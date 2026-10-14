@@ -1,6 +1,5 @@
-import { DEV_TEST_PASSENGER_PHONE } from '../store/useAppStore'
 import { simulate } from './simulate'
-import { maskPhone, normalizePhone } from './phone'
+import { DEV_TEST_PASSENGER_PHONE, maskPhone, normalizePhone } from './phone'
 import { runtimeConfig } from './runtimeConfig'
 
 const DEMO_USER_ID = '00000000-0000-4000-8000-000000000001'

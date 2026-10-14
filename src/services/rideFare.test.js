@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getRidePricing, normalizeRideFare } from './rideFare'
+import { getRidePricing, getServerRidePricing, normalizeRideFare } from './rideFare'
 
 describe('rideFare', () => {
   it('utilise le tarif de référence de chaque type quand le backend renvoie null', () => {
@@ -21,5 +21,20 @@ describe('rideFare', () => {
     expect(getRidePricing(Number.NaN, 'go')).toMatchObject({ price: 3200, driverEarning: 2720 })
     expect(getRidePricing(-1, 'go')).toMatchObject({ price: 3200, driverEarning: 2720 })
     expect(getRidePricing('  ', 'go')).toMatchObject({ price: 3200, driverEarning: 2720 })
+  })
+
+  it('mode réel : aucun tarif de repli quand le serveur n’a pas fixé le prix', () => {
+    const unknown = { estimatedPrice: null, price: null, driverEarning: null }
+    expect(getServerRidePricing(null)).toEqual(unknown)
+    expect(getServerRidePricing(undefined)).toEqual(unknown)
+    expect(getServerRidePricing(Number.NaN)).toEqual(unknown)
+    expect(getServerRidePricing(-1)).toEqual(unknown)
+    expect(getServerRidePricing('  ')).toEqual(unknown)
+  })
+
+  it('mode réel : conserve un prix serveur valide, y compris zéro', () => {
+    expect(getServerRidePricing(3250)).toEqual({ estimatedPrice: 3250, price: 3250, driverEarning: 2763 })
+    expect(getServerRidePricing('4000')).toMatchObject({ price: 4000, driverEarning: 3400 })
+    expect(getServerRidePricing(0)).toMatchObject({ price: 0, driverEarning: 0 })
   })
 })

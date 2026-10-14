@@ -1,8 +1,9 @@
 import { getAuthService } from './authService'
 import { isDemoMode, runtimeConfig } from './runtimeConfig'
-import { getRidePricing } from './rideFare'
+import { getServerRidePricing } from './rideFare'
 
 const AVAILABILITY_STATUSES = Object.freeze(['offline', 'available', 'on_ride'])
+export const DRIVER_RIDE_TRANSITIONS = Object.freeze(['arriving', 'arrived', 'in_progress', 'completed'])
 
 function backendError(message, code = 'dispatch_error') {
   const error = new Error(message)
@@ -29,7 +30,7 @@ function normalizeAvailability(row) {
 function normalizeRide(row) {
   const value = Array.isArray(row) ? row[0] : row
   if (!value?.id) throw backendError('La course retournée par le backend est invalide.', 'invalid_dispatch_response')
-  const pricing = getRidePricing(value.estimated_price, value.ride_type)
+  const pricing = getServerRidePricing(value.estimated_price)
 
   return {
     id: value.id,
@@ -100,6 +101,22 @@ export class SupabaseDispatchService {
     return normalizeRide(data)
   }
 
+  // Le serveur valide le chauffeur, l'ordre des étapes et l'idempotence.
+  async advanceRide(rideId, toStatus) {
+    if (typeof rideId !== 'string' || !rideId.trim()) {
+      throw backendError('Un identifiant de course est requis.', 'invalid_dispatch_input')
+    }
+    if (!DRIVER_RIDE_TRANSITIONS.includes(toStatus)) {
+      throw backendError('Le statut demandé est invalide.', 'invalid_dispatch_input')
+    }
+    const { data, error } = await (await this.getClient()).rpc('advance_driver_ride', {
+      p_ride_id: rideId,
+      p_to_status: toStatus,
+    })
+    if (error) throw error
+    return normalizeRide(data)
+  }
+
   async expireOffer(offerId) {
     if (typeof offerId !== 'string' || !offerId.trim()) {
       throw backendError('Un identifiant d’offre est requis.', 'invalid_dispatch_input')
@@ -134,6 +151,10 @@ export class DemoDispatchService {
 
   async respondToOffer(offerId, decision) {
     return { id: `demo-ride-for-${offerId}`, status: decision === 'accept' ? 'assigned' : 'searching' }
+  }
+
+  async advanceRide(rideId, toStatus) {
+    return { id: rideId, status: toStatus }
   }
 
   async expireOffer(offerId) {

@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import Logo from '../components/Logo'
 import PhoneInput from '../components/PhoneInput'
 import PrimaryButton from '../components/PrimaryButton'
-import { DEV_TEST_PASSENGER_PHONE, useAppStore } from '../store/useAppStore'
+import { useAppStore } from '../store/useAppStore'
 import { sendOtp } from '../services/otpService'
-import { normalizePhone } from '../services/phone'
+import { DEV_TEST_PASSENGER_PHONE, normalizePhone, usesTestPassengerPhone } from '../services/phone'
+import { isDemoMode } from '../services/runtimeConfig'
 
 export default function Onboarding() {
   const navigate = useNavigate()
@@ -15,16 +16,16 @@ export default function Onboarding() {
   const [phone, setPhone] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState('')
-  const usesTestPassengerPhone = import.meta.env.DEV && role === 'passenger'
+  const substitutePhone = usesTestPassengerPhone({ demo: isDemoMode, dev: import.meta.env.DEV, role })
 
-  const isValid = usesTestPassengerPhone
+  const isValid = substitutePhone
     ? phone.trim().length > 0
     : phone.replace(/\D/g, '').length >= 10
 
   const handleContinue = async () => {
     setIsSending(true)
     setError('')
-    const targetPhone = usesTestPassengerPhone ? DEV_TEST_PASSENGER_PHONE : normalizePhone(phone)
+    const targetPhone = substitutePhone ? DEV_TEST_PASSENGER_PHONE : normalizePhone(phone)
     try {
       const result = await sendOtp({ phone: targetPhone, role })
       savePhone(result.phone || targetPhone)
@@ -58,9 +59,9 @@ export default function Onboarding() {
         <div className="bg-white rounded-xl text-gray-900">
           <PhoneInput value={phone} onChange={setPhone} id="onboarding-phone" />
         </div>
-        {usesTestPassengerPhone && (
+        {substitutePhone && (
           <p className="text-xs text-white/55 mt-2 text-center">
-            Mode test actif : le code sera envoyé au numéro de test configuré.
+            Mode démo : le code sera envoyé au numéro de test configuré.
           </p>
         )}
         <div className="mt-4">

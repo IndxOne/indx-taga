@@ -7,33 +7,12 @@ import BackButton from '../../components/BackButton'
 import DriverRideMap from '../../components/DriverRideMap'
 import { getDispatchService } from '../../services/dispatchService'
 import { getRideRealtimeService } from '../../services/rideRealtimeService'
-import { getRidePricing } from '../../services/rideFare'
+import { mapServerRideToStore } from '../../services/rideMapping'
 import { isDemoMode } from '../../services/runtimeConfig'
 import { ROUTES } from '../../navigation/routes'
 
 function formatAmount(amount, fallback = 'Montant à confirmer') {
   return !Number.isFinite(amount) ? fallback : `${new Intl.NumberFormat('fr-FR').format(amount)} F`
-}
-
-function mapRideToStore(backendRide) {
-  const pricing = getRidePricing(backendRide.estimatedPrice, backendRide.rideType)
-  return {
-    id: backendRide.id,
-    passengerId: backendRide.passengerId,
-    pickup: backendRide.pickup,
-    destination: backendRide.destination,
-    pickupLabel: backendRide.pickupLabel,
-    dropoffLabel: backendRide.dropoffLabel,
-    rideType: backendRide.rideType,
-    scheduledAt: backendRide.scheduledAt,
-    driverId: backendRide.driverId,
-    status: backendRide.status,
-    ...pricing,
-    assignedAt: backendRide.assignedAt,
-    dispatchDeadlineAt: backendRide.dispatchDeadlineAt,
-    createdAt: backendRide.createdAt,
-    updatedAt: backendRide.updatedAt,
-  }
 }
 
 export default function IncomingRequest() {
@@ -164,7 +143,7 @@ export default function IncomingRequest() {
     try {
       const responseRide = await getDispatchService().respondToOffer(currentOffer.id, decision)
       if (decision === 'accept') {
-        const nextRide = mapRideToStore(responseRide)
+        const nextRide = mapServerRideToStore(responseRide)
         setRide(nextRide)
         updateRide(nextRide)
         setRideStatus(responseRide.status)
@@ -226,13 +205,9 @@ export default function IncomingRequest() {
   }
 
   const ride = isDemoMode ? storeRide : offer.ride
-  const pricing = isDemoMode ? {
-    estimatedPrice: ride.price,
-    price: ride.price,
-    driverEarning: ride.driverEarning,
-  } : getRidePricing(ride.estimatedPrice, ride.rideType)
-  const totalAmount = pricing.price
-  const driverAmount = pricing.driverEarning
+  // Réel : montants serveur uniquement (null tant que le prix n'est pas fixé).
+  const totalAmount = ride.price
+  const driverAmount = ride.driverEarning
   const pickupLabel = ride.pickupLabel || ride.pickup?.label || 'Prise en charge'
   const destinationLabel = ride.dropoffLabel || ride.destination?.label || 'Destination'
   const isResponding = Boolean(responseState)

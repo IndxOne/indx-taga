@@ -9,6 +9,7 @@ import Icon from '../../components/Icon'
 import { getDispatchService } from '../../services/dispatchService'
 import { getRideRealtimeService } from '../../services/rideRealtimeService'
 import { isDemoMode } from '../../services/runtimeConfig'
+import { driverRouteForStatus } from '../../hooks/useDriverRide'
 
 export default function Online() {
   const navigate = useNavigate()
@@ -18,10 +19,12 @@ export default function Online() {
   const driverEarningsToday = useAppStore((state) => state.driverEarningsToday)
   const driverRidesToday = useAppStore((state) => state.driverRidesToday)
   const driverHoursOnline = useAppStore((state) => state.driverHoursOnline)
+  const fullName = useAppStore((state) => state.profile.fullName)
   const [availabilityError, setAvailabilityError] = useState('')
   const [offerError, setOfferError] = useState('')
   const [isUpdatingAvailability, setIsUpdatingAvailability] = useState(false)
   const openedOfferIdRef = useRef(null)
+  const displayName = isDemoMode ? 'Yao Aristide' : fullName
 
   useEffect(() => {
     if (isDemoMode) return undefined
@@ -41,9 +44,20 @@ export default function Online() {
       },
     })
 
-    realtime.getActiveDriverOffer().then(openOffer).catch((error) => {
-      if (active) setOfferError(error.message || 'Les nouvelles demandes ne peuvent pas être reçues.')
-    })
+    // Reprise après rechargement : une course en cours prime sur toute offre.
+    realtime.getActiveDriverRide()
+      .then((activeRide) => {
+        if (!active) return null
+        if (activeRide) {
+          navigate(driverRouteForStatus(activeRide.status), { replace: true })
+          return null
+        }
+        return realtime.getActiveDriverOffer()
+      })
+      .then((offer) => offer && openOffer(offer))
+      .catch((error) => {
+        if (active) setOfferError(error.message || 'Les nouvelles demandes ne peuvent pas être reçues.')
+      })
 
     return () => {
       active = false
@@ -74,10 +88,10 @@ export default function Online() {
     <div className="relative flex h-full min-h-[700px] flex-1 overflow-hidden bg-[#dcebe8]">
       <div className="absolute inset-x-0 top-0 z-20 px-5 py-4 flex items-center justify-between bg-white/90 backdrop-blur-sm">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-full bg-taga-mango text-white flex items-center justify-center font-bold">YA</div>
+          <div className="w-9 h-9 rounded-full bg-taga-mango text-white flex items-center justify-center font-bold">{displayName.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '·'}</div>
           <div>
-            <p className="text-xs text-gray-400">BONJOUR, CHEF</p>
-            <p className="font-bold text-sm">Yao Aristide</p>
+            <p className="text-xs text-gray-400">{isDemoMode ? 'BONJOUR, CHEF' : 'BONJOUR'}</p>
+            <p className="font-bold text-sm">{displayName || 'Chauffeur'}</p>
           </div>
         </div>
         <span aria-live="polite" className={`flex items-center gap-1 text-xs font-semibold ${driverAvailable ? 'text-taga-green' : 'text-gray-400'}`}>
@@ -94,14 +108,20 @@ export default function Online() {
       </MapProvider>
 
       <div className="absolute inset-x-0 bottom-0 z-10 max-h-[48%] overflow-y-auto rounded-t-3xl bg-white px-4 pb-2 pt-4 text-gray-900 shadow-[0_-8px_24px_rgba(10,17,40,0.18)] flex flex-col gap-3">
-        <div className="rounded-2xl bg-gradient-to-br from-taga-navy via-taga-navy to-[#6a4d4d] px-4 py-3 text-white">
-          <div className="flex items-start justify-between">
-            <p className="text-[10px] font-semibold text-white/65">TES GAINS AUJOURD'HUI</p>
-            <p className="text-[10px] text-white/55">SAM. 24 AVR.</p>
+        {isDemoMode ? (
+          <div className="rounded-2xl bg-gradient-to-br from-taga-navy via-taga-navy to-[#6a4d4d] px-4 py-3 text-white">
+            <div className="flex items-start justify-between">
+              <p className="text-[10px] font-semibold text-white/65">TES GAINS AUJOURD'HUI</p>
+              <p className="text-[10px] text-white/55">SAM. 24 AVR.</p>
+            </div>
+            <AmountTile amount={driverEarningsToday} size="xl" tone="light" />
+            <p className="mt-1 text-[10px] text-white/65">Courses · {driverRidesToday} · En ligne · {driverHoursOnline} · Note · 4.91 ★</p>
           </div>
-          <AmountTile amount={driverEarningsToday} size="xl" tone="light" />
-          <p className="mt-1 text-[10px] text-white/65">Courses · {driverRidesToday} · En ligne · {driverHoursOnline} · Note · 4.91 ★</p>
-        </div>
+        ) : (
+          <div className="rounded-2xl bg-taga-navy/5 px-4 py-3 text-xs leading-5 text-gray-500" role="status">
+            Gains et statistiques disponibles dès l’activation du service de paiement.
+          </div>
+        )}
 
         <div className="flex items-center justify-between rounded-xl bg-taga-green/10 px-3 py-2">
           <ToggleSwitch
@@ -135,16 +155,18 @@ export default function Online() {
           </p>
         )}
 
-        <div className="flex items-center gap-3 rounded-xl bg-[#fff5e8] px-3 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-taga-mango/20 text-taga-mango"><Icon name="target" size={16} /></div>
-          <div>
-            <p className="text-xs font-semibold text-gray-800">Bonus +5 000 F</p>
-            <p className="text-[10px] text-gray-400">13/18 courses cette semaine · plus que 5</p>
-            <div className="mt-1.5 h-1.5 w-44 max-w-full overflow-hidden rounded-full bg-taga-mango/15">
-              <div className="h-full w-[72%] rounded-full bg-taga-mango" />
+        {isDemoMode && (
+          <div className="flex items-center gap-3 rounded-xl bg-[#fff5e8] px-3 py-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-taga-mango/20 text-taga-mango"><Icon name="target" size={16} /></div>
+            <div>
+              <p className="text-xs font-semibold text-gray-800">Bonus +5 000 F</p>
+              <p className="text-[10px] text-gray-400">13/18 courses cette semaine · plus que 5</p>
+              <div className="mt-1.5 h-1.5 w-44 max-w-full overflow-hidden rounded-full bg-taga-mango/15">
+                <div className="h-full w-[72%] rounded-full bg-taga-mango" />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <nav aria-label="Navigation chauffeur" className="grid grid-cols-4 border-t border-gray-100 pt-2">
           {DRIVER_NAV_ITEMS.map((item) => {

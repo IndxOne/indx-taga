@@ -4,14 +4,44 @@ import { useAppStore } from '../../store/useAppStore'
 import AmountTile from '../../components/AmountTile'
 import PrimaryButton from '../../components/PrimaryButton'
 import { getRidePricing } from '../../services/rideFare'
+import { isDemoMode } from '../../services/runtimeConfig'
+import { ROUTES } from '../../navigation/routes'
 
 export default function PayoutRecap() {
   const navigate = useNavigate()
   const driverWalletBalance = useAppStore((state) => state.driverWalletBalance)
   const ride = useAppStore((state) => state.ride)
+  const resetRide = useAppStore((state) => state.resetRide)
   const paymentMethods = useAppStore((state) => state.paymentMethods)
   const [withdrawalState, setWithdrawalState] = useState('idle')
   const [selectedPayout, setSelectedPayout] = useState('orange_money')
+
+  const resumeOnline = () => {
+    if (!isDemoMode) resetRide()
+    navigate(ROUTES.driverOnline)
+  }
+
+  if (!isDemoMode) {
+    // Mode réel : ni solde, ni retrait, ni gain tant que le lot paiement n'existe pas.
+    const hasRide = Boolean(ride.id)
+    return (
+      <div className="flex-1 overflow-y-auto bg-[#f4f6fa] px-5 py-7 text-taga-navy flex flex-col gap-4">
+        <div>
+          <p className="text-taga-green text-xs font-semibold">● COURSE TERMINÉE</p>
+          <h1 className="text-2xl font-bold mt-2">Course terminée.</h1>
+          {hasRide && <p className="text-gray-500 text-sm">{ride.pickupLabel} → {ride.dropoffLabel}</p>}
+        </div>
+        <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow-sm" role="status">
+          <p className="font-semibold text-taga-navy">Gains et retraits</p>
+          <p className="mt-1 text-xs leading-5">
+            Le calcul des gains et les retraits mobile money ne sont pas encore activés. Aucun montant n’est affiché tant que le service de paiement n’est pas en place.
+          </p>
+        </div>
+        <button type="button" onClick={resumeOnline} className="mt-auto rounded-xl border border-taga-navy py-3 font-semibold">Retour à l’espace chauffeur</button>
+      </div>
+    )
+  }
+
   const driverEarning = Number.isFinite(ride.driverEarning)
     ? ride.driverEarning
     : getRidePricing(ride.estimatedPrice ?? ride.price, ride.rideType).driverEarning
@@ -41,7 +71,7 @@ export default function PayoutRecap() {
         </div>
         {withdrawalState === 'requested' ? (
           <div role="status" className="mt-3 rounded-xl bg-taga-green/10 px-4 py-3 text-sm text-taga-green">
-            Demande de retrait enregistrée. Le statut sera actualisé dès confirmation du service.
+            Retrait simulé (démo) : aucune opération réelle n’a été effectuée.
           </div>
         ) : (
           <div className="mt-3"><PrimaryButton variant="mango" onClick={handleWithdrawal}>
@@ -50,7 +80,7 @@ export default function PayoutRecap() {
           </div>
         )}
       </div>
-      <button type="button" onClick={() => navigate('/driver/online')} className="mt-auto rounded-xl border border-taga-navy py-3 font-semibold">Reprendre en ligne</button>
+      <button type="button" onClick={resumeOnline} className="mt-auto rounded-xl border border-taga-navy py-3 font-semibold">Reprendre en ligne</button>
     </div>
   )
 }

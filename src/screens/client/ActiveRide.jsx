@@ -7,7 +7,7 @@ import PrimaryButton from '../../components/PrimaryButton'
 import ClientRideMap from '../../components/ClientRideMap'
 import { getDispatchService } from '../../services/dispatchService'
 import { getRideService } from '../../services/rideService'
-import { getRidePricing } from '../../services/rideFare'
+import { mapServerRideToStore } from '../../services/rideMapping'
 import { getDriverLocationRemainingMs, getRideRealtimeService } from '../../services/rideRealtimeService'
 import { isDemoMode } from '../../services/runtimeConfig'
 
@@ -42,27 +42,6 @@ const REAL_STATUS_COPY = {
 
 const SEARCH_STATUSES = new Set(['requested', 'searching'])
 const DRIVER_ASSIGNED_STATUSES = new Set(['assigned', 'arriving', 'driver_en_route', 'arrived', 'in_progress', 'completed'])
-
-function mapRealtimeRideToStore(backendRide) {
-  const pricing = getRidePricing(backendRide.estimatedPrice, backendRide.rideType)
-  return {
-    id: backendRide.id,
-    passengerId: backendRide.passengerId,
-    driverId: backendRide.driverId,
-    pickup: backendRide.pickup,
-    destination: backendRide.destination,
-    pickupLabel: backendRide.pickupLabel,
-    dropoffLabel: backendRide.dropoffLabel,
-    rideType: backendRide.rideType,
-    scheduledAt: backendRide.scheduledAt,
-    status: backendRide.status,
-    ...pricing,
-    assignedAt: backendRide.assignedAt,
-    dispatchDeadlineAt: backendRide.dispatchDeadlineAt,
-    createdAt: backendRide.createdAt,
-    updatedAt: backendRide.updatedAt,
-  }
-}
 
 export default function ActiveRide() {
   const navigate = useNavigate()
@@ -154,11 +133,13 @@ export default function ActiveRide() {
     const realtime = getRideRealtimeService()
     const applyRide = (serverRide) => {
       if (cancelled || !serverRide) return
-      updateRide(mapRealtimeRideToStore(serverRide))
+      updateRide(mapServerRideToStore(serverRide))
       setRideStatus(serverRide.status)
       if (!['assigned', 'arriving', 'arrived', 'in_progress'].includes(serverRide.status)) {
         setDriverLocation(null)
       }
+      // Fin de course décidée par le serveur (chauffeur) : bascule vers le récap.
+      if (serverRide.status === 'completed') navigate('/client/ride-end', { replace: true })
     }
 
     const restoreActiveRide = async () => {

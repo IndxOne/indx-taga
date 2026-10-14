@@ -44,15 +44,26 @@ describe('SupabaseRideService', () => {
       id: 'ride-1',
       passengerId: 'passenger-1',
       status: 'requested',
-      estimatedPrice: 3200,
-      price: 3200,
-      driverEarning: 2720,
+      estimatedPrice: null,
+      price: null,
+      driverEarning: null,
     })
     expect(rpc).toHaveBeenCalledWith('create_ride', {
       p_pickup: validInput.pickup,
       p_destination: validInput.destination,
       p_ride_type: 'go',
       p_scheduled_at: null,
+    })
+  })
+
+  it('conserve le prix serveur sans appliquer de tarif de repli', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { ...databaseRide, estimated_price: 3250 }, error: null })
+    const service = new SupabaseRideService({ client: { rpc } })
+
+    await expect(service.createRide(validInput)).resolves.toMatchObject({
+      estimatedPrice: 3250,
+      price: 3250,
+      driverEarning: 2763,
     })
   })
 

@@ -40,7 +40,12 @@ export default function Estimate() {
         destination: { label: ride.dropoffLabel },
         ride_type: selectedOption.id,
       })
-      const pricing = getRidePricing(createdRide.estimatedPrice, selectedOption.id)
+      // Réel : montants tels que renvoyés par le serveur (null si non fixés).
+      const pricing = isDemoMode ? getRidePricing(createdRide.estimatedPrice, selectedOption.id) : {
+        estimatedPrice: createdRide.estimatedPrice,
+        price: createdRide.price,
+        driverEarning: createdRide.driverEarning,
+      }
       setRide({
         ...ride,
         id: createdRide.id,
@@ -72,8 +77,9 @@ export default function Estimate() {
       <div className="flex-1 bg-white -mt-6 rounded-t-3xl px-5 py-6 flex flex-col gap-4 overflow-y-auto">
         <div>
           <p className="text-xs text-gray-400 uppercase">Choisis ta course</p>
-          <p className="font-bold">{ride.distanceKm} km · ~{ride.durationMin} min</p>
+          {isDemoMode && <p className="font-bold">{ride.distanceKm} km · ~{ride.durationMin} min</p>}
           <p className="text-xs text-gray-400">{ride.pickupLabel} → {ride.dropoffLabel}</p>
+          {!isDemoMode && <p className="mt-1 text-[10px] text-gray-400">Itinéraire provisoire · distance, durée et prix communiqués par le service.</p>}
         </div>
 
         <div className="flex flex-col gap-3">
@@ -88,7 +94,7 @@ export default function Estimate() {
           ))}
         </div>
 
-        {defaultPayment && (
+        {isDemoMode && defaultPayment && (
           <button
             type="button"
             onClick={() => navigate(ROUTES.paymentMethods)}

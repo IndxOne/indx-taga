@@ -72,8 +72,10 @@ describe('IncomingRequest chauffeur en mode réel', () => {
 
     await waitFor(() => expect(screen.getAllByText('Plateau').length).toBeGreaterThan(0))
     expect(mocks.realtime.getActiveDriverOffer).toHaveBeenCalledTimes(1)
-    expect(screen.getAllByText(/2.?720 F/).length).toBeGreaterThan(0)
-    expect(screen.queryByText('Tarif estimé indisponible')).toBeNull()
+    // Prix non fixé par le serveur : aucun montant de repli affiché.
+    expect(screen.queryByText(/2.?720 F/)).toBeNull()
+    expect(screen.queryByText(/3.?200 F/)).toBeNull()
+    expect(screen.getAllByText('Montant à confirmer').length).toBeGreaterThan(0)
     expect(mocks.realtime.subscribeToDriverOffers).toHaveBeenCalledWith(expect.objectContaining({
       onOfferChange: expect.any(Function),
       onError: expect.any(Function),

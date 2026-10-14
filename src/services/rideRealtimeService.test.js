@@ -27,6 +27,7 @@ function queryChain(result) {
     eq: vi.fn(() => query),
     gte: vi.fn(() => query),
     in: vi.fn(() => query),
+    not: vi.fn(() => query),
     order: vi.fn(() => query),
     limit: vi.fn(() => query),
     maybeSingle: vi.fn(() => Promise.resolve(result)),
@@ -72,13 +73,34 @@ describe('SupabaseRideRealtimeService', () => {
       id: 'ride-1',
       status: 'searching',
       driverId: null,
-      estimatedPrice: 3200,
-      price: 3200,
-      driverEarning: 2720,
+      estimatedPrice: null,
+      price: null,
+      driverEarning: null,
     })
     expect(rideQuery.in).toHaveBeenCalledWith('status', ['requested', 'searching', 'assigned', 'arriving', 'arrived', 'in_progress', 'no_driver'])
     expect(rideQuery.order).toHaveBeenCalledWith('created_at', { ascending: false })
     expect(rideQuery.limit).toHaveBeenCalledWith(1)
+  })
+
+  it('restaure la course active du chauffeur affecté après un rechargement', async () => {
+    const rideQuery = queryChain({ data: { ...rideRow, status: 'arrived' }, error: null })
+    const service = new SupabaseRideRealtimeService({ client: { from: vi.fn(() => rideQuery) } })
+
+    await expect(service.getActiveDriverRide()).resolves.toMatchObject({
+      id: 'ride-1',
+      status: 'arrived',
+      driverId: 'driver-1',
+      price: null,
+    })
+    expect(rideQuery.not).toHaveBeenCalledWith('driver_id', 'is', null)
+    expect(rideQuery.in).toHaveBeenCalledWith('status', ['assigned', 'arriving', 'arrived', 'in_progress'])
+  })
+
+  it('renvoie null quand le chauffeur n’a aucune course active', async () => {
+    const rideQuery = queryChain({ data: null, error: null })
+    const service = new SupabaseRideRealtimeService({ client: { from: vi.fn(() => rideQuery) } })
+
+    await expect(service.getActiveDriverRide()).resolves.toBeNull()
   })
 
   it('récupère l’offre active du chauffeur avec la course associée', async () => {
