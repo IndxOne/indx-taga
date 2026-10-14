@@ -275,7 +275,7 @@ Sur 635b036f0710aaed901dad6e827653ee81658c03 :
 | Contrôle | Résultat |
 |---|---|
 | npm ci | exit 0; 198 paquets installés |
-| npm run lint | exit 0; avertissement src/hooks/useAsyncData.js:25:5 (react/set-state-in-effect) |
+| npm run lint | exit 0; avertissement src/hooks/useAsyncData.js:25:5 (react(set-state-in-effect)) |
 | npm test | exit 0; 32 fichiers, 256 tests passés |
 | npm run build | exit 0; 132 modules transformés |
 | git diff --check ae1cb0e...HEAD | exit 0 |
