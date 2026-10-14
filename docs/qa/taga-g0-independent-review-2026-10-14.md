@@ -332,4 +332,4 @@ Le runbook `docs/staging-recette.md:8,21-46` interdit le SQL Editor pour ce scri
 
 ### Livraison QA
 
-Seul ce rapport est ajouté sur `codex/taga-g0-revue-test`; rapports G0–G0.5 et commits précédents conservés. Aucun fichier Claude, migration, secret, branche distante, Netlify ou production n'a été touché. Aucun push/merge n'a été effectué. Le worktree d'audit reste propre au SHA figé; le rapport QA est à committer localement. Ce verdict ne permet ni migration, ni seed distant, ni merge, ni production.
+Seul ce rapport est ajouté sur `codex/taga-g0-revue-test`; rapports G0–G0.5 et commits précédents conservés. Aucun fichier Claude, migration, secret, branche distante, Netlify ou production n'a été touché. Aucun push/merge n'a été effectué. Le worktree d'audit reste propre au SHA figé; le rapport QA est commité localement. Ce verdict ne permet ni migration, ni seed distant, ni merge, ni production.
