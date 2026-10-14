@@ -292,3 +292,44 @@ Preview est prête mais ne prouve pas le backend Supabase ni l'exécution du see
 Les rapports G0, G0.2 et G0.3 ci-dessus sont conservés. Cette section est le seul changement QA; aucun code/test Claude n'a été modifié. Le rapport est commité localement sur codex/taga-g0-revue-test après les deux commits G0.3 existants, sans les écraser; aucun push, merge, secret, environnement Supabase, migration distante, Netlify ou production touché. Worktree d'audit détaché : SHA 635b036…, propre.
 
 **Conclusion : NO-GO.** Le P1 staging demeure : le seed ne s'exécute pas avec le rôle postgres hébergé ordinaire; corriger le garde, documenter psql et tester avec un rôle non-superuser avant de préparer la recette Supabase. Ce rapport n'autorise ni migration distante, ni merge, ni production.
+
+## G0.7 — Revue indépendante finale du seed (2026-10-14)
+
+### Références et résultat
+
+SHA audité : `6e9d48ee8ff83560405d63ee187add022ef3e903`, parent `635b036f0710aaed901dad6e827653ee81658c03`. `git ls-remote` confirme la branche Claude à ce SHA et `main=e8c7bce71e185fbc8c3a20fcb85361a63819e051`. Le worktree d'audit `/tmp/indx-taga-pr1-review` est détaché et propre; le worktree QA `codex/taga-g0-revue-test` est propre avant ce rapport, avec ses quatre commits locaux G0.3/G0.5 conservés. Aucun agent concurrent.
+
+**NO-GO.** Le garde superuser de G0.5 est corrigé et les contrôles du seed sont fail-closed, mais `docs/backend-rides.md:128-147` maintient une procédure contradictoire demandant d'appliquer seulement 001/002 puis de faire créer `create_ride` par un passager `authenticated`. Or 002 accorde `EXECUTE` à `authenticated` (`supabase/migrations/002_rides.sql:195-196`) tandis que 012 révoque cet accès; le même document dit plus haut que 012 est non appliquée (`docs/backend-rides.md:64-73`). Cette instruction peut faire démarrer une recette dans l'état dangereux précisément neutralisé par G0.4. Correction minimale : remplacer ce paragraphe par la recette actuelle exigeant l'inventaire préalable et 012, ou le marquer explicitement historique/non exécutable; ne pas réaccorder `EXECUTE`.
+
+### Matrice G0.5 / G0.6
+
+| Finding | Verdict G0.7 | Preuve |
+|---|---|---|
+| P1 seed inutilisable avec rôle hébergé non-superuser | Corrigé dans G0.6 | `seed_test_ride.sql:81-113` vérifie session/courant, privilèges et capacité RLS sans `rolsuper`; `staging_seed.test.sh:134-147` exerce `NOSUPERUSER BYPASSRLS` avec droits ciblés; job CI PostgreSQL vert. |
+| Identité, rôles clients et `SET ROLE` | Corrigé, couverture dynamique partielle | Le script refuse une identité différente et les noms `anon`, `authenticated`, `service_role`, `authenticator` (`seed_test_ride.sql:81-88`); tests pour anon/authenticated/service_role et `SET ROLE` (`staging_seed.test.sh:81-89`), mais aucun cas dynamique `authenticator` (P2 de couverture). |
+| Privilèges minimaux, RLS, verrou 012 | Corrigé | Contrôle `INSERT/SELECT` rides/historique, `SELECT` profiles et RLS (`seed_test_ride.sql:90-126`); absence de droits client testée, dont `create_ride` (`staging_seed.test.sh:98-107,149-159`). |
+| Refus atomiques / triggers / comptages | Corrigé, validé en CI | Tests confirmation absente, mauvais rôle, droits manquants, passager invalide, type invalide, historique/course excédentaire et exception de trigger (`staging_seed.test.sh:75-132`); assertions d'absence de lignes après chaque refus via `refuse` (`:67-73`). Les refus d'insertion et de nombre inattendu lèvent une exception avant `COMMIT` (`seed_test_ride.sql:139-170`). |
+| Nettoyage du seed | Couvert et cohérent | Le runbook supprime l'historique puis la course et vérifie zéro course (`docs/staging-recette.md:53-60`); aucune trigger DELETE trouvée dans les migrations 001–012. Le nettoyage automatisé du test retire fixtures, triggers/fonctions/rôles du cluster jetable (`staging_seed.test.sh:26-40`). |
+| Procédure contradictoire create_ride | Persistant, P1 | `docs/backend-rides.md:128-147` décrit encore un appel client après 001/002, incompatible avec 012 et le runbook courant. |
+| Réexécution de migrations / portée Supabase hébergé | Pas de défaut dans le runbook G0.6; non vérifié distant | `docs/staging-recette.md:21-22` demande l'inventaire préalable, attend 001–012 dans l'ordre et ne demande pas de les rejouer. PostgreSQL CI générique ne valide ni PostgREST/JWT ni les rôles effectifs du projet hébergé. |
+
+Le rôle simulé non-superuser est `BYPASSRLS` avec privilèges explicites; un rôle distinct sans `BYPASSRLS` est refusé sauf propriétaire de table avec RLS non forcé (`seed_test_ride.sql:102-113`). Aucun rôle, fonction, GRANT ni privilège permanent n'est ajouté par le seed lui-même. Les triggers métier observés sont des triggers d'horodatage/protection, sans trigger DELETE (`supabase/migrations/001_profiles_roles.sql`, `002_rides.sql`, `005_live_driver_locations.sql`).
+
+### Contrôles
+
+| Contrôle | Résultat réel |
+|---|---|
+| `npm ci` | exit 0; 198 paquets installés |
+| `npm run lint` | exit 0; avertissement préexistant `src/hooks/useAsyncData.js:25:5` |
+| `npm test` | exit 0; 32 fichiers, 256 tests passés |
+| `npm run build` | exit 0; 132 modules transformés |
+| `git diff --check` sur le checkout audité | exit 0 |
+| Tests PostgreSQL locaux | non exécutables ici : `pg_isready` sans serveur; `bash supabase/tests/run-local.sh` échoue à la connexion socket (`Operation not permitted`); Docker absent |
+| CI sur le SHA figé | jobs « Migrations SQL (base jetable) » et « Lint, tests, build » completed/success; les trois autres checks Netlify sont success/neutral. Les deux jobs exigés sont attachés exactement à `6e9d48e`. |
+| Supabase distant | aucune connexion, migration ou seed tenté |
+
+Le runbook `docs/staging-recette.md:8,21-46` interdit le SQL Editor pour ce script `psql`, exige l'identification de la cible et l'inventaire 001–012 avant toute exécution; il avertit explicitement que le test local ne prouve pas les privilèges hébergés. Le contrôle des rôles dans le SQL est plus complet que le test dynamique, qui omet `authenticator`.
+
+### Livraison QA
+
+Seul ce rapport est ajouté sur `codex/taga-g0-revue-test`; rapports G0–G0.5 et commits précédents conservés. Aucun fichier Claude, migration, secret, branche distante, Netlify ou production n'a été touché. Aucun push/merge n'a été effectué. Le worktree d'audit reste propre au SHA figé; le rapport QA est à committer localement. Ce verdict ne permet ni migration, ni seed distant, ni merge, ni production.
