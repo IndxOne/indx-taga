@@ -110,11 +110,14 @@ Pour annuler une réactivation : rejouer le `revoke all ... from public, anon, a
 ### Recette sans commande cliente
 Pour exercer dispatch, transitions 011 et récapitulatif avant la sélection d'adresse
 fiable, la course de test est injectée **par le propriétaire de la base de recette**
-avec [`supabase/staging/seed_test_ride.sql`](../supabase/staging/seed_test_ride.sql).
-Ce script n'est pas une migration : il ne crée aucune fonction, aucun `GRANT`, aucune
-RPC joignable par `anon` ou `authenticated`, exige `confirm_isolated_staging=yes` et un
-rôle superuser, et ne touche à aucun secret. Les coordonnées qu'il insère sont des
-valeurs de test, pas des adresses authentifiées.
+avec [`supabase/staging/seed_test_ride.sql`](../supabase/staging/seed_test_ride.sql)
+(script `psql`, pas une migration, pas exécutable dans le SQL Editor). Il refuse sans
+confirmation explicite, sans le rôle administratif `postgres`, sans privilèges réels
+(pas de `rolsuper` : le `postgres` hébergé ne l'est pas) ou sans passager actif, ne crée
+aucune fonction, aucun `GRANT`, aucune RPC, ne touche pas au verrou de `create_ride`, et
+annule tout sauf s'il crée exactement 1 course et 2 lignes d'historique. La confirmation
+ne prouve pas l'isolation de la base. Procédure validée par un humain :
+[`staging-recette.md`](./staging-recette.md).
 
 ## FlutterFlow
 
