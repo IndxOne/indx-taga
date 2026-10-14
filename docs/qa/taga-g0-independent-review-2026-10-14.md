@@ -228,3 +228,67 @@ La Preview PR est marquée prête (`https://deploy-preview-1--tagaapp.netlify.ap
 Le rapport baseline et la section G0.2 ci-dessus sont conservés. La présente section G0.3 est le seul ajout QA; aucun test ou fichier métier n'a été changé sur la branche Codex. Le rapport est commité localement sur `codex/taga-g0-revue-test`; aucun push/merge, secret, environnement Supabase, migration distante, configuration Netlify ou production n'a été touché. Le worktree de revue détaché est propre au SHA `ae1cb0e…`; le worktree QA est propre après le commit.
 
 **Conclusion : NO-GO.** Le RPC accepte actuellement une création authentifiée sans coordonnées et sans preuve de provenance malgré la barrière UI. L'estimation reste également susceptible d'être présentée comme prix final. GO ne peut être accordé qu'après correction et réexécution des tests ciblés; aucune migration distante, merge ou production n'est autorisée par cette revue.
+
+## G0.5 — Revue indépendante du correctif 012 (2026-10-14)
+
+### Références et worktrees
+
+SHA audité : ae1cb0e6f72fa798672e1915bb82d6d038d58d66...635b036f0710aaed901dad6e827653ee81658c03 (26 fichiers, +854/-76). git ls-remote confirme claude/taga-g0-integrite-parcours=635b036… et main=e8c7bce…. La branche QA codex/taga-g0-revue-test conserve ses deux commits G0.3; son worktree était propre. Le worktree d'audit détaché est au SHA fourni. Aucun agent concurrent n'était présent. La branche Claude n'a pas été modifiée.
+
+**NO-GO pour staging preparation** : le seed supabase/staging/seed_test_ride.sql exige rolsuper=true, condition que le rôle postgres hébergé d'un projet Supabase ordinaire ne remplit pas. La documentation officielle confirme que le rôle postgres est fourni, mais ne reçoit pas l'attribut superuser : [Supabase — Roles, superuser access and unsupported operations](https://supabase.com/docs/guides/database/postgres/roles-superuser). Le test CI positif s'exécute sur PostgreSQL jetable avec le superutilisateur natif et ne détecte pas cet écart. Le SQL Editor ne peut pas exécuter les méta-commandes psql du script; il faut psql, mais le contrôle superuser le rejettera tout de même.
+
+### Matrice des six findings G0.3
+
+| Finding G0.3 | Correction G0.4 | Preuve | Verdict |
+|---|---|---|---|
+| Adresses / réservation réelle | Corrigé pour les clients : validation serveur stricte et EXECUTE révoqué à PUBLIC, anon, authenticated; UI désactivée | supabase/migrations/012_create_ride_lockdown.sql:1-164; test ACL/validation dans 012_create_ride_lockdown.test.sql | GO pour le parcours client désactivé. La provenance d'une coordonnée plausible n'est pas prouvable depuis un champ client, mais aucun rôle client ne peut appeler la RPC. |
+| Téléphone ivoirien / OTP | Inchangé, corrigé en G0.1 | src/services/phone.js, authService.js et tests précédents | GO |
+| Récupération après fin de course | Inchangé; persistance par ID et lecture serveur restent en place, limite de reconnexion initiale G0.3 reste ouverte | src/services/rideSession.js; ActiveRide.jsx:149-210; rideRealtimeService.js:126-146 | Partiel, P2 : pas de resynchronisation automatique si la restauration initiale échoue avant le listener online. |
+| Finance / estimation, prix final, gain et paiement | Corrigé dans les mappings et vues réelles | src/services/rideFare.js:38-50; rideMapping.js; RideAmounts.jsx; PayoutRecap.jsx:17-31 | GO |
+| Disponibilité chauffeur | Inchangé depuis G0.4 | Online.jsx:35-106; dispatchService.js | Partiel, P2 : pas de resync automatique au retour réseau ni de souscription au changement concurrent; serveur reste autoritaire. |
+| Faux trajet/cartographie mode réel | Inchangé, déjà corrigé | ClientRideMap.jsx, DriverRideMap.jsx, MapView.jsx | GO |
+
+### A — Migration 012 et contrôle des accès
+
+public.create_ride(jsonb,jsonb,public.taga_ride_type,timestamptz) conserve la signature, SECURITY DEFINER, search_path vide, identité auth.uid(), contrôle passenger actif, statut initial requested, prix initial null et insertion atomique de course/historique. Le helper taga_normalize_ride_point(jsonb,text) exige un objet, un libellé JSON string non vide de 1–240 caractères, lat/lng JSON numbers présents, non nuls, dans les bornes GPS et pas le couple (0,0). Strings numériques, booléens, objets/tableaux, null, NaN/Infinity en chaînes, exposants 1e400, bornes dépassées et libellés invalides sont couverts en départ et destination. Après refus, les compteurs course/historique doivent rester inchangés.
+
+EXECUTE est révoqué à PUBLIC, anon et authenticated sur create_ride et le helper. Le helper n'est pas SECURITY DEFINER. Les tests vérifient ACL dépliées (PUBLIC inclus), has_function_privilege effectif pour anon/authenticated, appels directs refusés, insert direct refusé, profils suspendu/chauffeur refusés, et helper inaccessible. La seule autre insertion de course est le seed administratif; aucune route RPC client alternative n'a été trouvée.
+
+La migration est réincluse en test et les ACL avant/après sont comparées. La CI applique toutes les migrations 001–012; les tests 011/012 et les autres RPC restent verts. Le changement d'accès est décrit dans le SQL et docs/backend-rides.md. La migration ne prétend pas prouver la provenance d'une adresse : des coordonnées plausibles restent falsifiables, d'où la désactivation de tout appel client tant qu'une résolution fiable serveur n'existe pas.
+
+Limites : la CI utilise un PostgreSQL générique bootstrapé, pas les rôles/memberships exacts de Supabase. has_function_privilege couvre l'héritage de anon/authenticated dans ce cluster, mais pas les rôles du projet hébergé. Ces tests ne valident pas PostgREST, JWT ou Realtime Supabase; aucune migration distante n'a été appliquée.
+
+### B — Contrat financier
+
+getServerRideMoney(3250) retourne exactement { estimatedPrice: 3250, finalPrice: null, driverEarning: null, paymentStatus: null }, sans propriété price. Les services ride/dispatch/Realtime utilisent ce contrat et mapServerRideToStore reflète les champs sans calcul. RideAmounts présente « Estimation indicative : 3 250 FCFA », « Montant final non disponible » et « Paiement : statut non disponible ». IncomingRequest affiche l'estimation séparément et le gain reste inconnu; RideInProgress ne calcule pas de commission réelle; PayoutRecap réel ne montre ni solde ni retrait. Tests ciblés présents pour service, mapping/UI, avec estimation 3250. Aucun défaut financier P1 trouvé dans le delta.
+
+### C — Seed de staging : blocage et correction minimale
+
+Dans seed_test_ride.sql, le DO vérifie pg_roles.rolsuper du rôle courant puis échoue si false. Le rôle postgres hébergé n'étant pas superuser, l'exécution documentée par psql échoue avant BEGIN et ne crée rien. Le commentaire mentionne SQL Editor, mais le fichier utilise les commandes méta psql \set, \gset, \if et \echo; le SQL Editor ne peut pas les traiter. staging_seed.test.sh passe dans CI parce qu'il tourne comme superuser natif; il n'émule pas le rôle hébergé non-superuser.
+
+Classement : **P1 opérationnel — recette staging impossible avec la procédure livrée.** Le refus actuel est fail-closed, ce n'est pas une faille d'accès client. Correction minimale, sans rouvrir la RPC ni ajouter de privilège permanent : garder l'exécution psql depuis une connexion explicitement choisie vers le projet staging et l'opt-in confirm_isolated_staging=yes; remplacer le garde rolsuper par current_user='postgres' plus vérification des seuls privilèges nécessaires (SELECT profiles; INSERT rides et ride_status_history). En cas de manque, lever une erreur sans GRANT. Ajouter un test sous un rôle postgres simulé non-superuser avec seulement ces droits. Documenter psql seulement, ou fournir à part une version SQL Editor sans méta-commandes. Exiger confirmation humaine de la cible staging isolée; aucun changement ni essai distant n'a été fait.
+
+### Contrôles réellement exécutés
+
+Sur 635b036f0710aaed901dad6e827653ee81658c03 :
+
+| Contrôle | Résultat |
+|---|---|
+| npm ci | exit 0; 198 paquets installés |
+| npm run lint | exit 0; avertissement src/hooks/useAsyncData.js:25:5 (react/set-state-in-effect) |
+| npm test | exit 0; 32 fichiers, 256 tests passés |
+| npm run build | exit 0; 132 modules transformés |
+| git diff --check ae1cb0e...HEAD | exit 0 |
+| CI PR #1, web | pass |
+| CI PR #1, PostgreSQL 16 jetable | pass; migrations 001–012, OK 011_driver_ride_transitions, OK 012_create_ride_lockdown, OK 011_concurrency, OK staging_seed |
+| PostgreSQL local | non exécuté; pg_isready sans serveur, Docker absent |
+| Seed sur Supabase hébergé | non exécuté; comportement rolsuper établi par code et docs |
+| PostgREST/JWT/Realtime hébergés | non exécutés |
+
+Preview est prête mais ne prouve pas le backend Supabase ni l'exécution du seed administratif. Aucun audit npm n'était requis dans ce tour; npm ci n'a pas fourni de synthèse d'advisories exploitable.
+
+### Livraison QA
+
+Les rapports G0, G0.2 et G0.3 ci-dessus sont conservés. Cette section est le seul changement QA; aucun code/test Claude n'a été modifié. Le rapport est commité localement sur codex/taga-g0-revue-test après les deux commits G0.3 existants, sans les écraser; aucun push, merge, secret, environnement Supabase, migration distante, Netlify ou production touché. Worktree d'audit détaché : SHA 635b036…, propre.
+
+**Conclusion : NO-GO.** Le P1 staging demeure : le seed ne s'exécute pas avec le rôle postgres hébergé ordinaire; corriger le garde, documenter psql et tester avec un rôle non-superuser avant de préparer la recette Supabase. Ce rapport n'autorise ni migration distante, ni merge, ni production.
