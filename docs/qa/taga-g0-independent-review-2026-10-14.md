@@ -225,6 +225,6 @@ La Preview PR est marquée prête (`https://deploy-preview-1--tagaapp.netlify.ap
 
 ### État durable et limites
 
-Le rapport baseline et la section G0.2 ci-dessus sont conservés. La présente section G0.3 est le seul ajout QA; aucun test ou fichier métier n'a été changé sur la branche Codex, et aucun commit/push/merge, secret, environnement Supabase, migration distante, configuration Netlify ou production n'a été touché. Le worktree de revue détaché est propre au SHA `ae1cb0e…`; le worktree QA garde sa branche `codex/taga-g0-revue-test` avec uniquement ce rapport modifié/non suivi avant livraison.
+Le rapport baseline et la section G0.2 ci-dessus sont conservés. La présente section G0.3 est le seul ajout QA; aucun test ou fichier métier n'a été changé sur la branche Codex. Le rapport est commité localement sur `codex/taga-g0-revue-test`; aucun push/merge, secret, environnement Supabase, migration distante, configuration Netlify ou production n'a été touché. Le worktree de revue détaché est propre au SHA `ae1cb0e…`; le worktree QA est propre après le commit.
 
 **Conclusion : NO-GO.** Le RPC accepte actuellement une création authentifiée sans coordonnées et sans preuve de provenance malgré la barrière UI. L'estimation reste également susceptible d'être présentée comme prix final. GO ne peut être accordé qu'après correction et réexécution des tests ciblés; aucune migration distante, merge ou production n'est autorisée par cette revue.
