@@ -293,6 +293,43 @@ Les rapports G0, G0.2 et G0.3 ci-dessus sont conservés. Cette section est le se
 
 **Conclusion : NO-GO.** Le P1 staging demeure : le seed ne s'exécute pas avec le rôle postgres hébergé ordinaire; corriger le garde, documenter psql et tester avec un rôle non-superuser avant de préparer la recette Supabase. Ce rapport n'autorise ni migration distante, ni merge, ni production.
 
+## G0.9 — Clôture indépendante de G0 (2026-10-14)
+
+### Références et portée
+
+SHA audité : `d7b383217c0bd3fed7bf938416da0bedfe42339b`, parent `6e9d48ee8ff83560405d63ee187add022ef3e903`. `git ls-remote` confirme `claude/taga-g0-integrite-parcours=d7b3832…` et `main=e8c7bce…`. Worktree d'audit détaché et propre; worktree QA `codex/taga-g0-revue-test` propre avant l'ajout ci-dessous, avec ses six commits locaux précédents conservés. Aucun agent concurrent.
+
+**NO-GO — P1 documentaire restant.** `docs/lot4a-geolocation-realtime.md:40-42` dit encore que les migrations 007/008 « doivent être appliquées » sans exiger l'inventaire des migrations déjà appliquées avant l'opération distante. Le nouveau paragraphe `:48-50` renvoie bien au runbook avant de tester une offre, mais ne conditionne pas l'instruction d'application qui précède. Correction minimale : remplacer cette prescription par un renvoi à `staging-recette.md` et expliciter l'inventaire préalable avant toute application; ne pas demander de rejouer une migration. Cette ligne est un défaut préexistant au delta G0.8 mais reste directement pertinent à la cohérence opérationnelle exigée pour G0.9.
+
+### Revue du delta G0.8
+
+| Contrôle | Résultat | Preuve |
+|---|---|---|
+| Instruction contradictoire dans backend-rides | Corrigée | `docs/backend-rides.md:150-181` qualifie l'ancienne procédure 001/002 d'obsolète, interdit de la suivre, impose l'inventaire avant intervention et dirige les courses de recette vers le seed. |
+| Verrou `create_ride`, FlutterFlow inclus | Maintenu explicitement | `docs/backend-rides.md:3-10,141-148,167-175`; l'accès client renvoie `42501`, sans voie de contournement FlutterFlow. La réactivation reste gate distinct et non autorisé dans ce lot (`:108-127`). |
+| Inventaire avant opérations distantes | Corrigé dans backend-auth, backend-rides et staging-recette; incomplet dans lot4a | `docs/backend-auth.md:25-27`, `backend-rides.md:163-181`, `staging-recette.md:21-22`; exception précise `lot4a-geolocation-realtime.md:40-42`. |
+| Cohérence des quatre documents | Partielle | `backend-auth.md` et `backend-rides.md` renvoient au runbook; `staging-recette.md` distingue inventaire et décision humaine. `lot4a` renvoie au runbook seulement pour les tests d'offres, après sa consigne d'application 007/008. |
+| Test documentaire | Passe, mais manque la régression lot4a | `src/services/backendDocsContract.test.js:49-56` vérifie pour lot4a uniquement la présence du lien; il ne détecte pas sa prescription 007/008 sans inventaire (`lot4a:40-42`). Les assertions de `backend-rides.md` couvrent bien suppression de l'ancienne procédure et refus client (`:18-47`). |
+| Test `authenticator` | Portée limitée mais cohérente | `supabase/tests/staging_seed.test.sh:89-90` fournit `expected_admin_role=authenticator`; cela exerce la liste de refus du nom, même si le rôle n'existe pas localement. Cela ne simule pas une connexion PostgREST avec `session_user=authenticator` et ne valide ni JWT ni Supabase hébergé. Le contrôle SQL lui-même rejette ce nom (`seed_test_ride.sql:82-88`). |
+
+Le runbook `staging-recette.md:22` exige un inventaire écrit et présente l'application éventuelle de 011/012 comme décision humaine séparée; il n'invite pas à rejouer des migrations. Aucun SQL, seed, rôle, privilège, environnement distant ou code applicatif n'a été modifié.
+
+### Contrôles exécutés
+
+| Contrôle | Résultat |
+|---|---|
+| `npx vitest run src/services/backendDocsContract.test.js` | 1 fichier, 6 tests passés |
+| `bash -n supabase/tests/staging_seed.test.sh` | exit 0 |
+| `git diff --check 6e9d48e…d7b3832` | exit 0 |
+| CI « Migrations SQL (base jetable) » sur `d7b3832` | completed/success |
+| CI « Lint, tests, build » sur `d7b3832` | completed/success |
+| Autres checks GitHub | Redirect/Header success; Pages changed neutral |
+| Tests SQL locaux | non rejoués; le tour ne disposait pas de serveur PostgreSQL/Docker local vérifié, les jobs CI SQL ont réussi |
+
+### Livraison QA
+
+Cette section est ajoutée sans modifier les rapports G0–G0.7 ni les fichiers Claude. Le worktree d'audit reste propre au SHA figé. Rapport destiné à être publié par commit normal sur `codex/taga-g0-revue-test`, sans force-push; aucun merge ni déploiement. Le verdict n'autorise qu'un inventaire Supabase en lecture seule, pas une migration, un seed distant ou la production.
+
 ## G0.7 — Revue indépendante finale du seed (2026-10-14)
 
 ### Références et résultat
