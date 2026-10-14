@@ -1,21 +1,35 @@
 # TAGA — contrat création de course (Lot 2)
 
+> **État actuel (G0).** Ce document décrit le contrat d'origine (lot 2, migrations
+> 001/002) **et** son verrouillage (012). Les migrations 011 et 012 ne sont **pas
+> appliquées** sur un projet Supabase distant. Depuis 012, `create_ride` n'est
+> exécutable ni par `anon`, ni par `authenticated`, ni par `PUBLIC` : aucun client
+> (React, FlutterFlow, mobile) ne peut créer de course. Les sections « Responsabilité »,
+> « Opération » et « Invariants backend » décrivent le contrat **visé** et la forme de
+> la RPC, pas une procédure à exécuter. Toute intervention sur un projet Supabase suit
+> [`staging-recette.md`](./staging-recette.md).
+
 ## Responsabilité
 
-Le client React, FlutterFlow ou une future application mobile appelle le même
-contrat backend. Le client ne crée jamais directement une ligne `rides` et ne
-transmet pas les champs d'autorité.
+Contrat visé : le client React, FlutterFlow ou une future application mobile
+appellerait le même contrat backend. Le client ne crée jamais directement une ligne
+`rides` et ne transmet pas les champs d'autorité. **Aujourd'hui (012), aucun client ne
+peut appeler `create_ride`** : l'accès est révoqué (voir « Verrouillage de create_ride
+(012) »).
 
 ```text
 Client → RideService → Supabase RPC create_ride → PostgreSQL
                                       ↘ rides + ride_status_history
 ```
 
-La migration correspondante est `supabase/migrations/002_rides.sql`.
+La migration d'origine est `supabase/migrations/002_rides.sql` (étape historique,
+non rejouable seule : voir « Procédure historique du lot 2 (obsolète) »). La RPC est
+redéfinie par `012_create_ride_lockdown.sql`.
 
 ## Opération
 
-`RideService.createRide()` accepte :
+Forme de la RPC et de `RideService.createRide()` (contrat visé ; **non appelable par un
+client depuis 012**, l'appel renvoie `42501`) :
 
 ```ts
 createRide({
@@ -51,6 +65,9 @@ Réponse :
 ```
 
 ## Invariants backend
+
+Ces invariants restent vrais pour le corps de la RPC ; ils ne rendent pas l'appel
+possible (012 le désactive) :
 
 - l'identité vient de `auth.uid()` ; aucun `passenger_id` n'est accepté dans la
   RPC ;
@@ -89,7 +106,9 @@ qu'aucune résolution d'adresse n'est faite côté serveur.
 la migration. Aucun accès de contournement n'est ajouté.
 
 ### Réactivation (gate distinct, hors de ce lot)
-Réversible par une migration ultérieure (013), seulement quand **toutes** les
+**Aucune réactivation n'est recommandée ni autorisée dans ce lot.** Elle ne pourrait
+résulter que d'une décision et d'une revue de sécurité séparées. Elle serait réversible
+par une migration ultérieure (013), seulement quand **toutes** les
 conditions suivantes sont réunies :
 
 1. une source d'adresse **vérifiée côté serveur** existe (par exemple une Edge
@@ -121,33 +140,50 @@ ne prouve pas l'isolation de la base. Procédure validée par un humain :
 
 ## FlutterFlow
 
-FlutterFlow appellera la même RPC Supabase avec les paramètres `p_pickup`,
-`p_destination`, `p_ride_type` et `p_scheduled_at`. Il ne doit pas ajouter
-`passenger_id`, `status` ou `estimated_price` à l'appel.
+FlutterFlow **ne peut pas appeler `create_ride`** tant que son accès reste révoqué
+(012) : l'appel est refusé par PostgreSQL (`42501`), sans course ni historique. Aucune
+configuration FlutterFlow ne doit contourner ce refus (pas de `service_role` embarquée,
+pas de table `rides` écrite directement). Quand l'accès sera rouvert par un lot séparé
+(voir « Réactivation »), la signature restera `p_pickup`, `p_destination`,
+`p_ride_type` et `p_scheduled_at`, sans `passenger_id`, `status` ni `estimated_price`.
 
-## Recette Supabase requise avant le lot suivant
+## Procédure historique du lot 2 (obsolète)
 
-Appliquer d'abord `001_profiles_roles.sql`, puis `002_rides.sql` dans le projet
-Supabase de recette. Avec de vraies sessions :
+L'ancienne recette « appliquer `001_profiles_roles.sql` puis `002_rides.sql`, puis
+appeler `create_ride` avec de vraies sessions `authenticated` » **n'est plus exécutable
+ni à suivre** : 001/002 décrivent une étape historique, `create_ride` est révoquée aux
+clients par 012, et un appel `authenticated` doit désormais être **refusé**. Ne rejouez
+aucune migration sur la foi de ce document.
 
-- un passager actif peut appeler `create_ride` et obtient une course
-  `requested` ainsi qu'une ligne d'historique `requested` ;
-- un appel sans session est refusé ;
-- un chauffeur, un compte suspendu ou tout autre rôle est refusé ;
-- la ligne créée porte toujours l'identifiant de la session courante ;
-- une tentative d'écriture directe sur `rides` ou `ride_status_history` est
-  refusée ;
-- chaque passager ne lit que ses propres courses et leur historique.
+## Recette Supabase actuelle
 
-Cette recette doit être exécutée avant d'autoriser le matching ou une transition
-de statut. Les tests Vitest vérifient le contrat côté dépôt ; ils ne remplacent
-pas cette vérification RLS sur le PostgreSQL de recette.
+Procédure opérationnelle de référence : [`staging-recette.md`](./staging-recette.md).
+Elle est soumise à validation humaine et ne se fait que sur un projet de recette isolé.
 
-Le dispatch du lot suivant est décrit dans [`backend-dispatch.md`](./backend-dispatch.md)
-et dépend de l'application de `supabase/migrations/003_dispatch.sql` après ces
-migrations.
+1. **Inventaire d'abord.** Avant toute intervention, identifier le projet cible et
+   lister les migrations **déjà appliquées** (Dashboard ou `supabase migration list`).
+   N'appliquer, ne rejouer ni ne « rattraper » aucune migration sans cet inventaire.
+   Les migrations 011 et 012 ne sont **pas** appliquées sur un projet distant à ce jour.
+2. **Verrou conservé.** Vérifier que `create_ride` n'est exécutable ni par `anon` ni par
+   `authenticated` (012 appliquée, ou refus du script de recette). Ne pas la réactiver.
+3. **Courses de recette.** Elles sont injectées **uniquement** par le dispositif
+   administratif isolé (`supabase/staging/seed_test_ride.sql`, `psql`, rôle `postgres`),
+   jamais par un client ni par `create_ride`.
+4. **Vérifications de recette** (sessions réelles) : `authenticated` et `anon` refusés
+   sur `create_ride` ; un passager ne lit que ses courses et leur historique ; aucune
+   écriture directe sur `rides` ou `ride_status_history` ; dispatch et transitions 011
+   exercés sur la course injectée.
+
+Les tests Vitest et SQL vérifient le contrat côté dépôt sur une base jetable ; ils ne
+remplacent pas la vérification RLS/JWT/Realtime sur le projet de recette.
+
+Le dispatch est décrit dans [`backend-dispatch.md`](./backend-dispatch.md) ; ses
+migrations suivent le même principe d'inventaire préalable.
 
 ## Hors périmètre
 
-Matching, géolocalisation active, transitions, paiement, commission,
-notifications, historique métier et notation sont réservés aux lots suivants.
+Ce lot et son verrouillage n'incluent pas : matching, géolocalisation active,
+transitions de statut côté passager, paiement, commission, notifications, historique
+métier, notation et sélection d'adresse fiable côté serveur. (Les transitions chauffeur
+sont traitées par la migration 011, non appliquée, et le dispatch par 003+ : voir
+`backend-dispatch.md` et `g0-integrite-parcours.md`.)

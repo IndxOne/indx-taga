@@ -83,6 +83,8 @@ for r in authenticated anon service_role; do
   refuse "rôle $r" "rôle administratif attendu" seed "set session authorization $r" "${YES[@]}" "${ARGS[@]}"
   refuse "rôle $r déclaré attendu" "ne peut pas servir" seed "set session authorization $r" -v expected_admin_role=$r "${YES[@]}" "${ARGS[@]}"
 done
+# authenticator (rôle de connexion PostgREST) : refusé comme administrateur attendu, sans exiger qu'il existe ici.
+refuse "authenticator déclaré attendu" "ne peut pas servir" seed "" -v expected_admin_role=authenticator "${YES[@]}" "${ARGS[@]}"
 refuse "rôle d'admin de test sans override (postgres attendu)" "rôle administratif attendu" \
   seed "set session authorization $ADMIN" "${YES[@]}" "${ARGS[@]}"
 refuse "SET ROLE (session ≠ courant)" "rôle administratif attendu" \

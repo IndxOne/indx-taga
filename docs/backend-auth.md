@@ -22,7 +22,9 @@ Les deux variables Supabase sont obligatoires en mode réel. Aucune `service_rol
 
 ## Migration
 
-Appliquer `supabase/migrations/001_profiles_roles.sql` dans Supabase. Elle crée les profils, les profils spécialisés, les véhicules, les contraintes, les index et les politiques RLS.
+`supabase/migrations/001_profiles_roles.sql` est une étape historique : ne l'appliquer
+ni la rejouer sur un projet Supabase sans inventaire préalable des migrations déjà
+appliquées (voir [`staging-recette.md`](./staging-recette.md)). Elle crée les profils, les profils spécialisés, les véhicules, les contraintes, les index et les politiques RLS.
 
 Le rôle est choisi uniquement à la création initiale du profil et ne peut plus être changé par le client. Le rôle `admin` est réservé à une opération serveur.
 

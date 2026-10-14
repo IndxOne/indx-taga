@@ -45,8 +45,9 @@ La publication Realtime porte sur `rides`, `driver_locations` et
 `ride_dispatch_offers`. La migration `009_driver_dispatch_realtime.sql` ajoute
 la réception des offres côté chauffeur et la RPC sécurisée
 `get_driver_active_offer()`, qui renvoie uniquement l'offre du chauffeur
-connecté avec sa course associée. Il faut appliquer les migrations dans le
-projet Supabase de recette avant de tester une offre réelle.
+connecté avec sa course associée. Avant de tester une offre réelle, suivre
+[`staging-recette.md`](./staging-recette.md) : inventaire des migrations déjà appliquées
+sur le projet de recette d'abord, aucune migration appliquée ou rejouée sans lui.
 
 ## Contrat frontend réutilisable
 

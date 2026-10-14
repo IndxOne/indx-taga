@@ -19,7 +19,7 @@ C'est un script **`psql`** : ses méta-commandes (`\set`, `\if`, `\gset`) ne fon
 
 ## Procédure
 1. **Identifier le projet cible.** Dashboard Supabase → *Project Settings* → *General* : noter le *Project ID*, le nom et l'organisation. Vérifier que c'est un projet dédié à la recette (aucun utilisateur ni donnée réels, aucun domaine de production). En cas de doute : **stop**.
-2. **Examiner les migrations appliquées.** *Database → Migrations* (ou `supabase migration list` après `supabase link`). Attendu : 001 à 012 appliquées, dans l'ordre, rien d'autre. Vérifier en SQL (SQL Editor, lecture seule) que `create_ride` n'est pas accordée aux clients :
+2. **Examiner les migrations appliquées.** *Database → Migrations* (ou `supabase migration list` après `supabase link`). Noter l'inventaire par écrit. À ce jour, les migrations 011 et 012 ne sont **pas** appliquées sur un projet distant : le script de recette refusera de s'exécuter tant que 012 (verrou de `create_ride`) est absente. Appliquer 011/012 est une décision humaine distincte, hors de ce document, qui ne rejoue jamais une migration déjà appliquée. État requis pour la suite : 001 à 012 appliquées une seule fois, dans l'ordre. Vérifier en SQL (SQL Editor, lecture seule) que `create_ride` n'est pas accordée aux clients :
    ```sql
    select has_function_privilege('anon', 'public.create_ride(jsonb,jsonb,public.taga_ride_type,timestamptz)', 'EXECUTE') as anon,
           has_function_privilege('authenticated', 'public.create_ride(jsonb,jsonb,public.taga_ride_type,timestamptz)', 'EXECUTE') as authenticated;
