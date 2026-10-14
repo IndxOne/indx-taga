@@ -1,5 +1,6 @@
 import Icon from './Icon'
 import { useAppStore } from '../store/useAppStore'
+import { isDemoMode } from '../services/runtimeConfig'
 
 const PHASES = {
   estimate: {
@@ -38,6 +39,10 @@ export default function ClientRideMap({ phase = 'estimate', showDriver = false }
   const config = PHASES[phase] ?? PHASES.estimate
   const ride = useAppStore((state) => state.ride)
   const driver = useAppStore((state) => state.driver)
+
+  // Mode réel : le tracé et les marqueurs sont des positions fixes de démonstration,
+  // jamais un trajet réel. Rien n'est dessiné tant qu'aucune carte réelle n'existe.
+  if (!isDemoMode) return null
   const end = phase === 'active' ? 'M120 245 C160 214 198 178 244 140 S305 83 336 58' : 'M120 245 C164 210 208 178 250 142 S305 83 320 58'
 
   return (

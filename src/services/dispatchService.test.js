@@ -69,6 +69,40 @@ describe('DemoDispatchService', () => {
     })
   })
 
+  it('lit la disponibilité serveur du chauffeur (offline, available, on_ride)', async () => {
+    for (const status of ['offline', 'available', 'on_ride']) {
+      const query = {
+        select: vi.fn(() => query),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { user_id: 'driver-1', availability_status: status, available_since: null, updated_at: '2026-09-02T10:00:00.000Z' },
+          error: null,
+        }),
+      }
+      const from = vi.fn(() => query)
+      const service = new SupabaseDispatchService({ client: { from } })
+
+      await expect(service.getDriverAvailability()).resolves.toMatchObject({
+        availabilityStatus: status,
+        available: status === 'available',
+      })
+      expect(from).toHaveBeenCalledWith('driver_profiles')
+    }
+  })
+
+  it('refuse une disponibilité serveur invalide ou un profil absent', async () => {
+    const make = (result) => {
+      const query = { select: vi.fn(() => query), maybeSingle: vi.fn().mockResolvedValue(result) }
+      return new SupabaseDispatchService({ client: { from: () => query } })
+    }
+
+    await expect(make({ data: { user_id: 'd', availability_status: 'busy' }, error: null }).getDriverAvailability())
+      .rejects.toMatchObject({ code: 'invalid_dispatch_response' })
+    await expect(make({ data: null, error: null }).getDriverAvailability())
+      .rejects.toMatchObject({ code: 'driver_profile_missing' })
+    await expect(make({ data: null, error: { code: '42501', message: 'denied' } }).getDriverAvailability())
+      .rejects.toEqual({ code: '42501', message: 'denied' })
+  })
+
   it('délègue chaque transition chauffeur à la RPC serveur', async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: { id: 'ride-1', passenger_id: 'passenger-1', driver_id: 'driver-1', status: 'arriving' },

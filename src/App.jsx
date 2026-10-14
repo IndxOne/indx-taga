@@ -41,6 +41,7 @@ function App() {
           <Route path={ROUTES.clientEstimate} element={<Protected role="passenger"><Estimate /></Protected>} />
           <Route path={ROUTES.clientActiveRide} element={<Protected role="passenger"><ActiveRide /></Protected>} />
           <Route path={ROUTES.clientRideEnd} element={<Protected role="passenger"><RideEnd /></Protected>} />
+          <Route path={ROUTES.clientRideEndById} element={<Protected role="passenger"><RideEnd /></Protected>} />
           <Route path={ROUTES.driverOnline} element={<Protected role="driver"><Online /></Protected>} />
           <Route path={ROUTES.driverIncomingRequest} element={<Protected role="driver"><IncomingRequest /></Protected>} />
           <Route path={ROUTES.driverNavigation} element={<Protected role="driver"><Navigation /></Protected>} />

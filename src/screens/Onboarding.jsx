@@ -18,14 +18,17 @@ export default function Onboarding() {
   const [error, setError] = useState('')
   const substitutePhone = usesTestPassengerPhone({ demo: isDemoMode, dev: import.meta.env.DEV, role })
 
-  const isValid = substitutePhone
-    ? phone.trim().length > 0
-    : phone.replace(/\D/g, '').length >= 10
+  const normalizedPhone = normalizePhone(phone)
+  const isValid = substitutePhone ? phone.trim().length > 0 : normalizedPhone !== ''
 
   const handleContinue = async () => {
+    const targetPhone = substitutePhone ? DEV_TEST_PASSENGER_PHONE : normalizedPhone
+    if (!targetPhone) {
+      setError('Numéro de téléphone invalide. Saisis les 10 chiffres, par exemple 07 07 12 34 56.')
+      return
+    }
     setIsSending(true)
     setError('')
-    const targetPhone = substitutePhone ? DEV_TEST_PASSENGER_PHONE : normalizePhone(phone)
     try {
       const result = await sendOtp({ phone: targetPhone, role })
       savePhone(result.phone || targetPhone)

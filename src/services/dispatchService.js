@@ -75,6 +75,17 @@ export class SupabaseDispatchService {
     return normalizeAvailability(data)
   }
 
+  // Lecture de la disponibilité serveur (RLS : le chauffeur ne lit que son profil).
+  async getDriverAvailability() {
+    const { data, error } = await (await this.getClient())
+      .from('driver_profiles')
+      .select('user_id, availability_status, available_since, updated_at')
+      .maybeSingle()
+    if (error) throw error
+    if (!data) throw backendError('Profil chauffeur introuvable.', 'driver_profile_missing')
+    return normalizeAvailability(data)
+  }
+
   async requestRideDispatch(rideId) {
     if (typeof rideId !== 'string' || !rideId.trim()) {
       throw backendError('Un identifiant de course est requis.', 'invalid_dispatch_input')
@@ -143,6 +154,10 @@ export class DemoDispatchService {
       availableSince: available ? new Date().toISOString() : null,
       updatedAt: new Date().toISOString(),
     }
+  }
+
+  async getDriverAvailability() {
+    return this.setDriverAvailability(this.available)
   }
 
   async requestRideDispatch(rideId) {

@@ -52,12 +52,14 @@ export const MOCK_PAYMENT_METHODS = [
 ]
 
 // Mode réel : aucune donnée fictive. Le store n'est qu'un cache d'affichage des
-// réponses serveur ; seuls les libellés de trajet provisoires (sélection
-// d'adresse non implémentée) sont conservés pour pouvoir créer une course.
+// réponses serveur. Départ et destination démarrent vides : ils ne peuvent être
+// renseignés que par une source fiable (voir ridePoints.js).
 export const REAL_RIDE = {
   id: null,
-  pickupLabel: MOCK_RIDE.pickupLabel,
-  dropoffLabel: MOCK_RIDE.dropoffLabel,
+  pickup: null,
+  destination: null,
+  pickupLabel: '',
+  dropoffLabel: '',
   distanceKm: null,
   durationMin: null,
   estimatedPrice: null,

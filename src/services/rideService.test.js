@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { DemoRideService, SupabaseRideService } from './rideService'
 
 const validInput = {
-  pickup: { label: 'Cocody, Riviera 3', lat: 5.34, lng: -4.01 },
-  destination: { label: 'Plateau, Imm. CAISTAB', lat: 5.32, lng: -4.02 },
+  pickup: { label: 'Cocody, Riviera 3', lat: 5.34, lng: -4.01, source: 'device_gps' },
+  destination: { label: 'Plateau, Imm. CAISTAB', lat: 5.32, lng: -4.02, source: 'address_selection' },
   ride_type: 'go',
   scheduled_at: null,
 }
@@ -49,8 +49,9 @@ describe('SupabaseRideService', () => {
       driverEarning: null,
     })
     expect(rpc).toHaveBeenCalledWith('create_ride', {
-      p_pickup: validInput.pickup,
-      p_destination: validInput.destination,
+      // La provenance reste côté client : seule la forme libellé + coordonnées part à la RPC.
+      p_pickup: { label: 'Cocody, Riviera 3', lat: 5.34, lng: -4.01 },
+      p_destination: { label: 'Plateau, Imm. CAISTAB', lat: 5.32, lng: -4.02 },
       p_ride_type: 'go',
       p_scheduled_at: null,
     })
@@ -63,8 +64,37 @@ describe('SupabaseRideService', () => {
     await expect(service.createRide(validInput)).resolves.toMatchObject({
       estimatedPrice: 3250,
       price: 3250,
-      driverEarning: 2763,
+      driverEarning: null,
     })
+  })
+
+  it('refuse sans appel RPC les points absents, incomplets, invalides ou de provenance non fiable', async () => {
+    const rpc = vi.fn()
+    const service = new SupabaseRideService({ client: { rpc } })
+    const good = validInput.pickup
+    const cases = {
+      'départ absent': { ...validInput, pickup: undefined },
+      'destination absente': { ...validInput, destination: null },
+      'libellés seuls (chaînes de démo)': { ...validInput, pickup: 'Cocody, Riviera 3', destination: 'Plateau, Imm. CAISTAB' },
+      'libellé seul sans coordonnées': { ...validInput, pickup: { label: 'Cocody, Riviera 3', source: 'device_gps' } },
+      'latitude manquante': { ...validInput, pickup: { ...good, lat: undefined } },
+      'longitude manquante': { ...validInput, destination: { ...validInput.destination, lng: undefined } },
+      'latitude hors plage': { ...validInput, pickup: { ...good, lat: 91 } },
+      'longitude hors plage': { ...validInput, pickup: { ...good, lng: -181 } },
+      'latitude NaN': { ...validInput, pickup: { ...good, lat: Number.NaN } },
+      'longitude Infinity': { ...validInput, destination: { ...validInput.destination, lng: Infinity } },
+      'coordonnées en chaîne': { ...validInput, pickup: { ...good, lat: '5.34' } },
+      'coordonnées 0,0': { ...validInput, pickup: { ...good, lat: 0, lng: 0 } },
+      'libellé vide': { ...validInput, pickup: { ...good, label: '   ' } },
+      'libellé trop long': { ...validInput, destination: { ...validInput.destination, label: 'x'.repeat(241) } },
+      'provenance absente': { ...validInput, pickup: { label: good.label, lat: good.lat, lng: good.lng } },
+      'provenance inconnue': { ...validInput, pickup: { ...good, source: 'demo' } },
+    }
+
+    for (const [name, input] of Object.entries(cases)) {
+      await expect(service.createRide(input), name).rejects.toMatchObject({ code: 'invalid_ride_input' })
+    }
+    expect(rpc).not.toHaveBeenCalled()
   })
 
   it('propage les erreurs backend', async () => {

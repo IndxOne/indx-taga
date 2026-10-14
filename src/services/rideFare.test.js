@@ -33,8 +33,19 @@ describe('rideFare', () => {
   })
 
   it('mode réel : conserve un prix serveur valide, y compris zéro', () => {
-    expect(getServerRidePricing(3250)).toEqual({ estimatedPrice: 3250, price: 3250, driverEarning: 2763 })
-    expect(getServerRidePricing('4000')).toMatchObject({ price: 4000, driverEarning: 3400 })
-    expect(getServerRidePricing(0)).toMatchObject({ price: 0, driverEarning: 0 })
+    expect(getServerRidePricing(3250)).toEqual({ estimatedPrice: 3250, price: 3250, driverEarning: null })
+    expect(getServerRidePricing('4000')).toMatchObject({ price: 4000 })
+    expect(getServerRidePricing(0)).toMatchObject({ price: 0 })
+  })
+
+  it('mode réel : le gain chauffeur n’est jamais déduit d’un pourcentage frontend', () => {
+    for (const price of [0, 1900, 3200, 3250, 4500, '3250']) {
+      expect(getServerRidePricing(price).driverEarning).toBeNull()
+    }
+    expect(JSON.stringify(getServerRidePricing(3250))).not.toContain('2763')
+  })
+
+  it('démo : le calcul fictif du gain est conservé', () => {
+    expect(getRidePricing(3250, 'go').driverEarning).toBe(2763)
   })
 })

@@ -120,6 +120,32 @@ export class SupabaseRideRealtimeService {
     return data ? normalizeRide(data) : null
   }
 
+  // Lecture ciblée d'une course TERMINÉE du passager authentifié. Distincte de
+  // getActiveRide (statuts en cours). La RLS (rides_select_own) filtre déjà ; le
+  // contrôle passenger_id est une seconde barrière explicite côté client.
+  async getCompletedRide(rideId) {
+    assertRideId(rideId)
+    const client = await this.getClient()
+    const { data: sessionData, error: sessionError } = await client.auth.getSession()
+    const userId = sessionData?.session?.user?.id
+    if (sessionError || !userId) {
+      throw realtimeError('Une session est nécessaire pour lire cette course.', 'unauthenticated')
+    }
+
+    const { data, error } = await client
+      .from('rides')
+      .select(RIDE_COLUMNS)
+      .eq('id', rideId)
+      .eq('status', 'completed')
+      .maybeSingle()
+    if (error) throw error
+    if (!data) return null
+    if (data.passenger_id !== userId) {
+      throw realtimeError('Cette course n’appartient pas au compte connecté.', 'forbidden')
+    }
+    return normalizeRide(data)
+  }
+
   async getActiveRide() {
     const { data, error } = await (await this.getClient())
       .from('rides')
@@ -296,6 +322,10 @@ export class DemoRideRealtimeService {
   }
 
   async getActiveRide() {
+    return null
+  }
+
+  async getCompletedRide() {
     return null
   }
 

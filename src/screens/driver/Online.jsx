@@ -11,6 +11,15 @@ import { getRideRealtimeService } from '../../services/rideRealtimeService'
 import { isDemoMode } from '../../services/runtimeConfig'
 import { driverRouteForStatus } from '../../hooks/useDriverRide'
 
+// Aucun « HORS LIGNE » tant que le serveur n'a pas répondu.
+const STATUS_BADGE = {
+  loading: 'SYNCHRONISATION…',
+  error: 'ÉTAT INCONNU',
+  offline: 'HORS LIGNE',
+  available: 'EN LIGNE',
+  on_ride: 'EN COURSE',
+}
+
 export default function Online() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -23,7 +32,14 @@ export default function Online() {
   const [availabilityError, setAvailabilityError] = useState('')
   const [offerError, setOfferError] = useState('')
   const [isUpdatingAvailability, setIsUpdatingAvailability] = useState(false)
+  // Réel : statut lu sur le serveur (null tant que la lecture n'est pas terminée).
+  const [serverAvailability, setServerAvailability] = useState(null)
+  const [syncState, setSyncState] = useState(isDemoMode ? 'ready' : 'loading')
+  const [syncAttempt, setSyncAttempt] = useState(0)
+  const updatingRef = useRef(false)
   const openedOfferIdRef = useRef(null)
+  const availabilityStatus = isDemoMode ? (driverAvailable ? 'available' : 'offline') : serverAvailability
+  const canToggle = isDemoMode || (syncState === 'ready' && availabilityStatus !== 'on_ride' && !isUpdatingAvailability)
   const displayName = isDemoMode ? 'Yao Aristide' : fullName
 
   useEffect(() => {
@@ -65,8 +81,34 @@ export default function Online() {
     }
   }, [navigate])
 
+  useEffect(() => {
+    if (isDemoMode) return undefined
+
+    let active = true
+    const sync = async () => {
+      setSyncState('loading')
+      try {
+        const availability = await getDispatchService().getDriverAvailability()
+        if (!active) return
+        setServerAvailability(availability.availabilityStatus)
+        setDriverAvailable(availability.available)
+        setSyncState('ready')
+      } catch (error) {
+        if (!active) return
+        setSyncState('error')
+        setAvailabilityError(error.message || 'La disponibilité n’a pas pu être lue.')
+      }
+    }
+    void sync()
+    return () => {
+      active = false
+    }
+  }, [setDriverAvailable, syncAttempt])
+
   const handleAvailabilityChange = async (nextAvailable) => {
-    if (isUpdatingAvailability) return
+    // Ref : bloque deux bascules concurrentes avant même le re-rendu.
+    if (updatingRef.current || !canToggle) return
+    updatingRef.current = true
     setAvailabilityError('')
     if (isDemoMode) {
       setDriverAvailable(nextAvailable)
@@ -76,10 +118,12 @@ export default function Online() {
     setIsUpdatingAvailability(true)
     try {
       const result = await getDispatchService().setDriverAvailability(nextAvailable)
+      setServerAvailability(result.availabilityStatus)
       setDriverAvailable(result.available)
     } catch (error) {
       setAvailabilityError(error.message || 'La disponibilité n’a pas pu être mise à jour.')
     } finally {
+      updatingRef.current = false
       setIsUpdatingAvailability(false)
     }
   }
@@ -94,8 +138,8 @@ export default function Online() {
             <p className="font-bold text-sm">{displayName || 'Chauffeur'}</p>
           </div>
         </div>
-        <span aria-live="polite" className={`flex items-center gap-1 text-xs font-semibold ${driverAvailable ? 'text-taga-green' : 'text-gray-400'}`}>
-          <span>●</span> {driverAvailable ? 'EN LIGNE' : 'HORS LIGNE'}
+        <span aria-live="polite" className={`flex items-center gap-1 text-xs font-semibold ${availabilityStatus === 'available' ? 'text-taga-green' : 'text-gray-400'}`}>
+          <span>●</span> {STATUS_BADGE[syncState === 'ready' ? availabilityStatus : syncState] ?? STATUS_BADGE.error}
         </span>
       </div>
 
@@ -126,8 +170,9 @@ export default function Online() {
         <div className="flex items-center justify-between rounded-xl bg-taga-green/10 px-3 py-2">
           <ToggleSwitch
             id="availability-toggle"
-            checked={driverAvailable}
+            checked={availabilityStatus === 'available'}
             onChange={handleAvailabilityChange}
+            disabled={!canToggle}
             label="Disponible pour course"
           />
           {isDemoMode && driverAvailable && (
@@ -151,8 +196,17 @@ export default function Online() {
 
         {!isDemoMode && (
           <p className="text-[10px] leading-4 text-gray-400" role="status" aria-live="polite">
-            {isUpdatingAvailability ? 'Synchronisation de ta disponibilité…' : 'En attente de nouvelles demandes. La disponibilité est contrôlée par le serveur.'}
+            {syncState === 'loading' || isUpdatingAvailability
+              ? 'Synchronisation de ta disponibilité…'
+              : availabilityStatus === 'on_ride'
+                ? 'Tu es en course : la disponibilité est verrouillée par le serveur.'
+                : 'En attente de nouvelles demandes. La disponibilité est contrôlée par le serveur.'}
           </p>
+        )}
+        {!isDemoMode && syncState === 'error' && (
+          <button type="button" onClick={() => setSyncAttempt((count) => count + 1)} className="self-start text-xs font-semibold text-taga-blue underline">
+            Relire ma disponibilité
+          </button>
         )}
 
         {isDemoMode && (

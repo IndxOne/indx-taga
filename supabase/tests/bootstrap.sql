@@ -2,9 +2,16 @@
 -- hors Supabase. Reproduit uniquement ce que les migrations supposent
 -- (rôles, schéma auth, auth.uid()/auth.jwt(), publication Realtime).
 -- Ne jamais exécuter sur un projet Supabase : il fournit déjà tout cela.
-create role anon nologin;
-create role authenticated nologin;
-create role service_role nologin;
+-- Les rôles sont globaux au cluster : création idempotente pour rejouer sur une base neuve.
+do $$
+declare r text;
+begin
+  foreach r in array array['anon', 'authenticated', 'service_role'] loop
+    if not exists (select 1 from pg_roles where rolname = r) then
+      execute format('create role %I nologin', r);
+    end if;
+  end loop;
+end $$;
 
 create schema auth;
 create table auth.users (id uuid primary key);

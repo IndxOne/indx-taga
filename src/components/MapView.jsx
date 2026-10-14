@@ -52,7 +52,7 @@ export default function MapView({ children, className = '', 'aria-label': ariaLa
       </svg>
 
       <div className="pointer-events-none absolute right-4 top-4 z-[1] rounded-lg bg-white/90 px-2 py-1 text-[10px] font-semibold text-gray-500 shadow-sm">
-        Carte SVG · aperçu
+        {isDemoMode ? 'Carte SVG · aperçu' : 'Fond décoratif · aucun trajet réel'}
       </div>
       {children}
     </div>

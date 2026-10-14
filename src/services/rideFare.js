@@ -28,8 +28,10 @@ export function getRidePricing(value, rideType) {
   }
 }
 
-// Mode réel : aucun tarif de repli. Tant que le backend n'a pas fixé le prix,
-// le montant reste inconnu (null) au lieu d'afficher une valeur fictive.
+// Mode réel : aucun tarif de repli et aucun gain déduit côté frontend. Le prix
+// vient du serveur (null tant qu'il n'est pas fixé). Le gain chauffeur reste
+// null : aucun montant autoritatif n'est fourni par le backend, et la
+// commission n'est une règle ni du frontend ni de ce lot.
 export function getServerRidePricing(value) {
   const amount = typeof value === 'number'
     ? value
@@ -40,9 +42,5 @@ export function getServerRidePricing(value) {
   if (!Number.isFinite(amount) || amount < 0) {
     return { estimatedPrice: null, price: null, driverEarning: null }
   }
-  return {
-    estimatedPrice: amount,
-    price: amount,
-    driverEarning: Math.round(amount * DRIVER_COMMISSION_RATE),
-  }
+  return { estimatedPrice: amount, price: amount, driverEarning: null }
 }

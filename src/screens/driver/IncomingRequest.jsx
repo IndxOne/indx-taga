@@ -11,6 +11,8 @@ import { mapServerRideToStore } from '../../services/rideMapping'
 import { isDemoMode } from '../../services/runtimeConfig'
 import { ROUTES } from '../../navigation/routes'
 
+const EARNING_UNAVAILABLE = 'Gain non disponible'
+
 function formatAmount(amount, fallback = 'Montant à confirmer') {
   return !Number.isFinite(amount) ? fallback : `${new Intl.NumberFormat('fr-FR').format(amount)} F`
 }
@@ -229,9 +231,9 @@ export default function IncomingRequest() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-400">TU GAGNES</p>
-            <p className="font-bold text-3xl">{formatAmount(driverAmount)}</p>
+            <p className="font-bold text-3xl">{formatAmount(driverAmount, EARNING_UNAVAILABLE)}</p>
             <p className="text-[10px] text-gray-400">
-              Course total : {formatAmount(totalAmount)} · Net : 85%
+              Course total : {formatAmount(totalAmount)}{isDemoMode ? ' · Net : 85%' : ''}
             </p>
           </div>
           <div className="flex h-16 w-16 flex-col items-center justify-center rounded-full border-4 border-taga-mango font-bold text-taga-navy">
@@ -269,7 +271,7 @@ export default function IncomingRequest() {
           </button>
           <div className="flex-1">
             <PrimaryButton variant="green" onClick={handleAccept} disabled={isResponding}>
-              {responseState === 'accept' ? 'Acceptation…' : responseState === 'expire' ? 'Mise à jour…' : `Accepter · ${formatAmount(driverAmount)}`}
+              {responseState === 'accept' ? 'Acceptation…' : responseState === 'expire' ? 'Mise à jour…' : Number.isFinite(driverAmount) ? `Accepter · ${formatAmount(driverAmount)}` : 'Accepter'}
             </PrimaryButton>
           </div>
         </div>

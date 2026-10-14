@@ -18,3 +18,7 @@ for test in supabase/tests/*.test.sql; do
   echo "== $test"
   psql -v ON_ERROR_STOP=1 -q -f "$test"
 done
+for test in supabase/tests/*.test.sh; do
+  echo "== $test"
+  bash "$test"
+done

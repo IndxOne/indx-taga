@@ -103,6 +103,53 @@ describe('SupabaseRideRealtimeService', () => {
     await expect(service.getActiveDriverRide()).resolves.toBeNull()
   })
 
+  describe('getCompletedRide', () => {
+    const completedRow = { ...rideRow, status: 'completed' }
+    const clientWith = (rideQuery, userId = 'passenger-1') => ({
+      from: vi.fn(() => rideQuery),
+      auth: { getSession: vi.fn().mockResolvedValue({ data: { session: userId ? { user: { id: userId } } : null }, error: null }) },
+    })
+
+    it('lit la course terminée par identifiant et statut, distincte de la course active', async () => {
+      const rideQuery = queryChain({ data: completedRow, error: null })
+      const service = new SupabaseRideRealtimeService({ client: clientWith(rideQuery) })
+
+      await expect(service.getCompletedRide('ride-1')).resolves.toMatchObject({ id: 'ride-1', status: 'completed', passengerId: 'passenger-1' })
+      expect(rideQuery.eq).toHaveBeenCalledWith('id', 'ride-1')
+      expect(rideQuery.eq).toHaveBeenCalledWith('status', 'completed')
+      expect(rideQuery.in).not.toHaveBeenCalled()
+    })
+
+    it('renvoie null si la course n’est pas visible (autre passager filtré par la RLS, non terminée)', async () => {
+      const service = new SupabaseRideRealtimeService({ client: clientWith(queryChain({ data: null, error: null })) })
+
+      await expect(service.getCompletedRide('ride-autre')).resolves.toBeNull()
+    })
+
+    it('refuse une course d’un autre passager même si elle était renvoyée (seconde barrière)', async () => {
+      const service = new SupabaseRideRealtimeService({ client: clientWith(queryChain({ data: completedRow, error: null }), 'intrus') })
+
+      await expect(service.getCompletedRide('ride-1')).rejects.toMatchObject({ code: 'forbidden' })
+    })
+
+    it('exige une session avant toute lecture', async () => {
+      const rideQuery = queryChain({ data: completedRow, error: null })
+      const service = new SupabaseRideRealtimeService({ client: clientWith(rideQuery, null) })
+
+      await expect(service.getCompletedRide('ride-1')).rejects.toMatchObject({ code: 'unauthenticated' })
+      expect(rideQuery.select).not.toHaveBeenCalled()
+    })
+
+    it('propage les erreurs backend et refuse un identifiant invalide', async () => {
+      const backendError = { code: '42501', message: 'denied' }
+      const service = new SupabaseRideRealtimeService({ client: clientWith(queryChain({ data: null, error: backendError })) })
+
+      await expect(service.getCompletedRide('ride-1')).rejects.toEqual(backendError)
+      await expect(service.getCompletedRide('')).rejects.toMatchObject({ code: 'invalid_realtime_input' })
+      await expect(service.getCompletedRide('a,b')).rejects.toMatchObject({ code: 'invalid_realtime_input' })
+    })
+  })
+
   it('récupère l’offre active du chauffeur avec la course associée', async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: {

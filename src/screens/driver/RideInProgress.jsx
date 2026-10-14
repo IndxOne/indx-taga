@@ -10,7 +10,7 @@ import { isDemoMode } from '../../services/runtimeConfig'
 import { driverRouteForStatus, useDriverRide } from '../../hooks/useDriverRide'
 import { ROUTES } from '../../navigation/routes'
 
-const formatAmount = (amount) => (Number.isFinite(amount) ? `${new Intl.NumberFormat('fr-FR').format(amount)} F` : '—')
+const formatAmount = (amount) => (Number.isFinite(amount) ? `${new Intl.NumberFormat('fr-FR').format(amount)} F` : 'Gain non disponible')
 
 export default function RideInProgress() {
   const navigate = useNavigate()

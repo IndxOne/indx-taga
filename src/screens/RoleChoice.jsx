@@ -3,6 +3,7 @@ import { useAppStore } from '../store/useAppStore'
 import RoleCard from '../components/RoleCard'
 import Logo from '../components/Logo'
 import Icon from '../components/Icon'
+import { isDemoMode } from '../services/runtimeConfig'
 
 export default function RoleChoice() {
   const navigate = useNavigate()
@@ -38,7 +39,7 @@ export default function RoleChoice() {
           badgeColor="bg-taga-green"
           iconBg="bg-taga-green"
           title="Je suis chauffeur"
-          subtitle="85% net · Retrait instantané"
+          subtitle={isDemoMode ? '85% net · Retrait instantané' : 'Reçois et réalise des courses'}
           onSelect={() => selectRole('driver')}
         />
       </div>

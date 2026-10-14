@@ -41,14 +41,21 @@ export default function Home() {
           <p className="text-gray-500 text-sm">Où on va aujourd'hui ?</p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => navigate('/client/estimate')}
-          className="border border-gray-200 rounded-xl px-4 py-3 text-left text-gray-400 flex items-center justify-between"
-        >
-          <span>Saisir une destination...</span>
-          <span className="rounded-lg bg-taga-blue/10 px-2 py-1 text-xs font-semibold text-taga-blue">Tap →</span>
-        </button>
+        {isDemoMode ? (
+          <button
+            type="button"
+            onClick={() => navigate('/client/estimate')}
+            className="border border-gray-200 rounded-xl px-4 py-3 text-left text-gray-400 flex items-center justify-between"
+          >
+            <span>Saisir une destination...</span>
+            <span className="rounded-lg bg-taga-blue/10 px-2 py-1 text-xs font-semibold text-taga-blue">Tap →</span>
+          </button>
+        ) : (
+          <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-5 text-amber-800">
+            <p className="font-semibold">Commande indisponible</p>
+            <p className="mt-1 text-xs">La saisie d’adresse fiable n’existe pas encore dans cette version : la commande de course réelle est désactivée.</p>
+          </div>
+        )}
 
         {isDemoMode && <div className="flex flex-col gap-3">
           {FAVORITES.map((favorite) => (

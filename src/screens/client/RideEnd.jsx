@@ -1,23 +1,26 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useAppStore } from '../../store/useAppStore'
 import AmountTile from '../../components/AmountTile'
 import RatingStars from '../../components/RatingStars'
 import PrimaryButton from '../../components/PrimaryButton'
 import { getRidePricing } from '../../services/rideFare'
 import { isDemoMode } from '../../services/runtimeConfig'
+import { getRideRealtimeService } from '../../services/rideRealtimeService'
+import { classifyRideReadError } from '../../services/rideErrors'
+import { isRideClosed, markRideClosed } from '../../services/rideSession'
+import { ROUTES } from '../../navigation/routes'
 
 const TAGS = ['Conduite', 'À l\'heure', 'Voiture propre']
 const COMPLETION_META = '24 AOÛT 2026 · 18:42'
 
-export default function RideEnd() {
+function DemoRideEnd() {
   const navigate = useNavigate()
   const ride = useAppStore((state) => state.ride)
   const driver = useAppStore((state) => state.driver)
   const rating = useAppStore((state) => state.rating)
   const setRating = useAppStore((state) => state.setRating)
   const setRideStatus = useAppStore((state) => state.setRideStatus)
-  const resetRide = useAppStore((state) => state.resetRide)
   const paymentMethods = useAppStore((state) => state.paymentMethods)
   const defaultPayment = paymentMethods.find((method) => method.isDefault) ?? paymentMethods[0]
   const [selectedTags, setSelectedTags] = useState([])
@@ -31,37 +34,10 @@ export default function RideEnd() {
   }
 
   const handleFinish = () => {
-    if (!isDemoMode) {
-      resetRide()
-      navigate('/client/home')
-      return
-    }
     setRideStatus('completed')
     setRating(0)
     setSelectedTags([])
     navigate('/client/home')
-  }
-
-  if (!isDemoMode) {
-    // Mode réel : pas de paiement, de détail tarifaire, de chauffeur ni de note fictifs.
-    const priceKnown = Number.isFinite(ride.price)
-    return (
-      <div className="flex-1 overflow-y-auto bg-[#f4f6fa] px-5 pb-3 pt-8 flex flex-col gap-4">
-        <div className="text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-taga-green text-3xl text-white shadow-[0_8px_20px_rgba(54,171,82,0.25)]">✓</div>
-          <h1 className="mt-3 text-xl font-bold text-taga-navy">Course terminée</h1>
-          <p className="mt-1 text-xs text-gray-500">{ride.pickupLabel} → {ride.dropoffLabel}</p>
-        </div>
-        <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow-sm" role="status">
-          {priceKnown
-            ? <AmountTile label="Montant de la course" amount={ride.price} size="xl" />
-            : <p className="text-xs leading-5">Le montant et le paiement ne sont pas encore activés : aucun débit n’a été effectué.</p>}
-        </div>
-        <div className="mt-auto">
-          <PrimaryButton onClick={handleFinish}>Terminer</PrimaryButton>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -131,4 +107,93 @@ export default function RideEnd() {
       {receiptNotice && <p role="status" className="-mt-2 text-center text-[10px] text-gray-500">Le reçu PDF sera disponible après connexion au service de reçus.</p>}
     </div>
   )
+}
+
+// Mode réel : le récapitulatif est celui de la course identifiée dans l'URL, relu
+// côté serveur (jamais déduit du store). Seule une course TERMINÉE du passager
+// authentifié est affichée ; une fois clôturé, il ne se rouvre plus.
+function RealRideEnd() {
+  const navigate = useNavigate()
+  const { rideId } = useParams()
+  const resetRide = useAppStore((state) => state.resetRide)
+  const [view, setView] = useState({ status: 'loading', ride: null })
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    if (!rideId || isRideClosed(rideId)) {
+      navigate(ROUTES.clientHome, { replace: true })
+      return undefined
+    }
+
+    let active = true
+    const load = async () => {
+      setView({ status: 'loading', ride: null })
+      try {
+        const ride = await getRideRealtimeService().getCompletedRide(rideId)
+        if (active) setView(ride ? { status: 'ready', ride } : { status: 'not_found', ride: null })
+      } catch (error) {
+        if (active) setView({ status: classifyRideReadError(error), ride: null })
+      }
+    }
+    void load()
+    return () => {
+      active = false
+    }
+  }, [attempt, navigate, rideId])
+
+  const goHome = useCallback(() => {
+    markRideClosed(rideId)
+    resetRide()
+    navigate(ROUTES.clientHome, { replace: true })
+  }, [navigate, resetRide, rideId])
+
+  if (view.status === 'loading') {
+    return (
+      <div className="flex min-h-full items-center justify-center bg-white px-5 py-10 text-center text-sm text-gray-600" role="status">
+        Récupération de ta course…
+      </div>
+    )
+  }
+
+  if (view.status !== 'ready') {
+    const messages = {
+      not_found: 'Course terminée introuvable.',
+      forbidden: 'Accès refusé : cette course n’appartient pas à ton compte, ou ta session a expiré.',
+      error: 'La course n’a pas pu être chargée. Vérifie ta connexion et réessaie.',
+    }
+    return (
+      <div className="flex min-h-full flex-col items-center justify-center gap-4 bg-white px-5 py-10 text-center">
+        <p className={`max-w-sm text-sm leading-5 ${view.status === 'not_found' ? 'text-gray-600' : 'text-red-600'}`} role="alert">
+          {messages[view.status]}
+        </p>
+        {view.status === 'error' && (
+          <PrimaryButton variant="green" onClick={() => setAttempt((count) => count + 1)}>Réessayer</PrimaryButton>
+        )}
+        <PrimaryButton variant="navy" onClick={() => navigate(ROUTES.clientHome, { replace: true })}>Retour à l’accueil</PrimaryButton>
+      </div>
+    )
+  }
+
+  const { ride } = view
+  return (
+    <div className="flex-1 overflow-y-auto bg-[#f4f6fa] px-5 pb-3 pt-8 flex flex-col gap-4">
+      <div className="text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-taga-green text-3xl text-white shadow-[0_8px_20px_rgba(54,171,82,0.25)]">✓</div>
+        <h1 className="mt-3 text-xl font-bold text-taga-navy">Course terminée</h1>
+        <p className="mt-1 text-xs text-gray-500">{ride.pickupLabel} → {ride.dropoffLabel}</p>
+      </div>
+      <div className="rounded-2xl bg-white p-4 text-sm text-gray-600 shadow-sm" role="status">
+        {Number.isFinite(ride.price)
+          ? <AmountTile label="Montant de la course" amount={ride.price} size="xl" />
+          : <p className="text-xs leading-5">Le montant et le paiement ne sont pas encore activés : aucun débit n’a été effectué.</p>}
+      </div>
+      <div className="mt-auto">
+        <PrimaryButton onClick={goHome}>Terminer</PrimaryButton>
+      </div>
+    </div>
+  )
+}
+
+export default function RideEnd() {
+  return isDemoMode ? <DemoRideEnd /> : <RealRideEnd />
 }
