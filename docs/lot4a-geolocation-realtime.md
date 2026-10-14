@@ -37,17 +37,29 @@ Une recherche `requested` ou `searching` peut être annulée par son passager vi
 `offered`, passe la course à `cancelled` et écrit l'historique. Après expiration
 du délai de recherche, `retry_ride_search` remet uniquement une course
 `no_driver` à `requested`; le client relance ensuite la recherche normale.
-Les migrations `007_dispatch_offer_cancellation.sql` puis
-`008_cancel_ride_search.sql` doivent être appliquées dans cet ordre après la
-migration 006.
+Ces RPC viennent de `007_dispatch_offer_cancellation.sql` puis de
+`008_cancel_ride_search.sql` (ordre de dépendance 006 → 007 → 008 : voir
+« Migrations 005 à 009 » ci-dessous).
 
 La publication Realtime porte sur `rides`, `driver_locations` et
 `ride_dispatch_offers`. La migration `009_driver_dispatch_realtime.sql` ajoute
 la réception des offres côté chauffeur et la RPC sécurisée
 `get_driver_active_offer()`, qui renvoie uniquement l'offre du chauffeur
-connecté avec sa course associée. Avant de tester une offre réelle, suivre
-[`staging-recette.md`](./staging-recette.md) : inventaire des migrations déjà appliquées
-sur le projet de recette d'abord, aucune migration appliquée ou rejouée sans lui.
+connecté avec sa course associée.
+
+### Migrations 005 à 009 : ordre de dépendance et exploitation
+
+Ordre de dépendance SQL, **à titre historique** : 005 → 006 → 007 → 008 → 009. En
+particulier, 007 puis 008 s'appuient sur 006 et s'enchaînent dans cet ordre. Cet ordre
+décrit des dépendances ; ce n'est **pas** une instruction d'exécution.
+
+Avant toute opération sur un projet Supabase (y compris pour tester une offre réelle) :
+
+1. lire [`staging-recette.md`](./staging-recette.md), procédure de référence ;
+2. identifier le projet cible ;
+3. dresser l'inventaire des migrations déjà appliquées ;
+4. n'appliquer ni rejouer aucune migration (007, 008 ou autre) sans autorisation
+   explicite. Les migrations 011 et 012 ne sont pas appliquées sur un projet distant.
 
 ## Contrat frontend réutilisable
 
@@ -73,10 +85,16 @@ position en attente. En mode démo, aucune écriture Supabase n'est effectuée.
 À l’ouverture de l’écran de course active, le client appelle d’abord
 `getActiveRide()`. Le résultat serveur devient la source du `ride_id`, puis le
 client charge la dernière position et s’abonne au canal Realtime de cette
-course. Une course terminée, annulée ou absente redirige vers l’accueil ; une
-course `no_driver` reste restaurable afin d’afficher la nouvelle tentative. Le
-bouton d’annulation est rendu uniquement pour `requested` et `searching`, selon
-le statut reçu du serveur.
+course. Une course `no_driver` reste restaurable afin d’afficher la nouvelle
+tentative. Le bouton d’annulation est rendu uniquement pour `requested` et
+`searching`, selon le statut reçu du serveur.
+
+`getActiveRide()` ne renvoie jamais une course terminée. Sans course en cours,
+l’écran relit côté serveur la dernière course suivie (`rideSession`) avec
+`getCompletedRide(id)` (statut `completed`, session requise, `passenger_id` = compte
+connecté) : si elle est terminée et non clôturée, il redirige vers le récapitulatif
+`/client/ride-end/:rideId` ; sinon (annulée, absente, déjà clôturée) il redirige vers
+l’accueil. Voir P1.3 dans [`g0-integrite-parcours.md`](./g0-integrite-parcours.md).
 
 React ne calcule pas de prix, n'impose pas de statut et ne choisit pas
 l'identité du chauffeur. Zustand ne sert qu'à refléter le cache UI des données

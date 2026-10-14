@@ -53,7 +53,7 @@ Le champ historique `price` n'existe plus en mode réel (il restait une copie de
 
 ## Tests
 - `npm test` — unitaires/écrans (Vitest).
-- `supabase/tests/run-local.sh` — rejoue les migrations 001→011, puis `*.test.sql` et `*.test.sh`, sur une **base PostgreSQL jetable** (jamais Supabase distant) :
+- `supabase/tests/run-local.sh` — rejoue les migrations 001→012, puis `*.test.sql` et `*.test.sh`, sur une **base PostgreSQL jetable** (jamais Supabase distant) :
   - `011_driver_ride_transitions.test.sql` : tests séquentiels (autorisations, transitions illégales, idempotence séquentielle, historique, libération, isolation de lecture type RLS).
   - `011_concurrency.test.sh` : vraie concurrence (plusieurs sessions `psql`, la session A garde le verrou ; les autres doivent attendre). Retirer `for update` de la RPC le fait échouer (S1).
   - `012_create_ride_lockdown.test.sql` : ACL (public/anon/authenticated sans EXECUTE), appels directs refusés sans course ni historique, validation exhaustive des points (corps appelé par le propriétaire), rôles, réexécution de 012, réactivation simulée puis annulée.

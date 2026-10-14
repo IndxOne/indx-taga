@@ -64,3 +64,81 @@ describe('docs/backend-rides.md — cohérent avec la migration 012', () => {
     expect(read('docs/staging-recette.md')).toMatch(/service_role[^.\n]*jamais un contournement|jamais un contournement/i)
   })
 })
+
+// --- Prescriptions de migration : contrôle au niveau du paragraphe -------------------------
+// Un paragraphe qui ORDONNE d'appliquer/rejouer une migration doit porter, dans le même
+// paragraphe, l'inventaire préalable (ou une négation / un marquage historique explicite).
+// Les plans de prototype (docs/superpowers) sont exclus : ce sont des journaux historiques
+// sans exploitation Supabase ; le test qui suit vérifie qu'ils n'en contiennent pas.
+const listMarkdown = (dir) =>
+  readdirSync(resolve(process.cwd(), dir), { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory()
+      ? listMarkdown(`${dir}/${entry.name}`)
+      : entry.name.endsWith('.md')
+        ? [`${dir}/${entry.name}`]
+        : [],
+  )
+const paragraphs = (md) => md.split(/\n\s*\n/).map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean)
+const MIGRATION_REF = /\b\d{3}_[a-z0-9_]+\.sql\b|\bmigrations?\s+`?\d{3}\b|supabase\s+(db\s+push|migration)|migration\s+up/i
+const IMPERATIVE_APPLY =
+  /(doivent|doit|faut|devez|dois)\s+(être\s+)?appliqu|\bappliquer\b|\bappliquez\b|\brejou(er|ez)\b|supabase\s+db\s+push|migration\s+up/i
+const SAFE_CONTEXT =
+  /inventaire|(titre|étape|procédure|exemple)\s+historique|\(historique\)|obsol[èe]te|ne\s+(pas\s+)?(l['’])?appliqu|ne\s+rejou|ni\s+(la\s+)?rejou|aucune\s+migration|n['’]appliquer\s+ni|jamais\s+(rejou|appliqu)/i
+const unsafeMigrationInstructions = (md) =>
+  paragraphs(md).filter((p) => MIGRATION_REF.test(p) && IMPERATIVE_APPLY.test(p) && !SAFE_CONTEXT.test(p))
+
+describe('docs — instructions de migration', () => {
+  const operational = listMarkdown('docs').filter((f) => !f.startsWith('docs/superpowers/'))
+
+  it('aucun paragraphe ne prescrit une migration sans préalable d’inventaire', () => {
+    for (const file of operational) {
+      expect(unsafeMigrationInstructions(read(file)), file).toEqual([])
+    }
+  })
+
+  it('le détecteur reconnaît l’ancienne prescription 007/008 (garde-fou du test)', () => {
+    const legacy =
+      'Les migrations `007_dispatch_offer_cancellation.sql` puis `008_cancel_ride_search.sql` doivent être appliquées dans cet ordre après la migration 006.'
+    expect(unsafeMigrationInstructions(legacy)).toHaveLength(1)
+    expect(unsafeMigrationInstructions(`${legacy} Inventaire des migrations déjà appliquées d’abord.`)).toEqual([])
+    // Le mot « historique » seul (ex. historique des statuts) ne neutralise pas la prescription.
+    expect(unsafeMigrationInstructions(`${legacy} Elle écrit l’historique.`)).toHaveLength(1)
+    expect(unsafeMigrationInstructions(`À titre historique : ${legacy}`)).toEqual([])
+    expect(unsafeMigrationInstructions('Exécuter `supabase db push` sur le projet.')).toHaveLength(1)
+  })
+
+  it('les plans historiques (docs/superpowers, docs/qa) ne contiennent aucune exploitation Supabase', () => {
+    for (const file of listMarkdown('docs').filter((f) => f.startsWith('docs/superpowers/') || f.startsWith('docs/qa/'))) {
+      expect(unsafeMigrationInstructions(read(file)), file).toEqual([])
+    }
+  })
+})
+
+describe('docs/lot4a-geolocation-realtime.md — migrations 005 à 009', () => {
+  const lot4a = read('docs/lot4a-geolocation-realtime.md')
+  const migrations = section(lot4a, 'Migrations 005 à 009')
+
+  it('garde l’ordre de dépendance 006 → 007 → 008 comme information historique', () => {
+    expect(migrations).toMatch(/historique/i)
+    expect(migrations).toMatch(/006[\s\S]{0,40}007[\s\S]{0,40}008/)
+    expect(migrations).toMatch(/pas\W+une instruction d.ex[ée]cution/i)
+  })
+
+  it('impose, dans cette section, lecture de la procédure, projet cible, inventaire et autorisation', () => {
+    expect(migrations).toContain('staging-recette.md')
+    expect(migrations).toMatch(/identifier le projet cible/i)
+    expect(migrations).toMatch(/inventaire des migrations d[ée]j[àa] appliqu/i)
+    expect(migrations).toMatch(/aucune migration[\s\S]{0,60}autorisation\s+explicite/i)
+  })
+
+  it('ne contient plus de prescription 007/008 isolée dans le contrat backend', () => {
+    const rest = lot4a.replace(migrations, '')
+    expect(rest).not.toMatch(/doivent\s+être\s+appliqu/i)
+  })
+
+  it('décrit la restauration des courses terminées comme en G0 (getCompletedRide, récapitulatif serveur)', () => {
+    expect(lot4a).toMatch(/getCompletedRide/)
+    expect(lot4a).toMatch(/\/client\/ride-end\/:rideId/)
+    expect(lot4a).not.toMatch(/Une course terminée, annulée ou absente redirige vers l[’']accueil/)
+  })
+})
